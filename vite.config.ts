@@ -86,6 +86,9 @@ function serviceWorker(): Plugin {
 export default defineConfig({
   // 绑定所有网卡，便于用局域网 IP 在 Android Pad 真机上调试
   server: { host: true },
+  // Service Worker 只在安全上下文里注册，局域网 IP 是 http，测不了 PWA。
+  // 真机验证得靠隧道拿一个 https 地址，这里放行它的域名——否则 Vite 会 403。
+  preview: { allowedHosts: [".trycloudflare.com"] },
   esbuild: { target: TARGET },
   build: { target: TARGET },
   optimizeDeps: { esbuildOptions: { target: TARGET } },
