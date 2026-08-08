@@ -1,0 +1,151 @@
+:root {
+  --total-scale-factor: 1;
+  --scale-round-x: 1px;
+  --scale-round-y: 1px;
+  --bg: #f4f4f5;
+  --fg: #18181b;
+  --card: #ffffff;
+  --border: #e4e4e7;
+  --accent: #2563eb;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+  background: var(--bg);
+  color: var(--fg);
+  font: 15px/1.5 -apple-system, "PingFang SC", system-ui, sans-serif;
+  /* 压制 Android Chrome 长按弹出的原生选择手柄与菜单 */
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+  overscroll-behavior: none;
+}
+
+#bar {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 10px 16px;
+  background: var(--card);
+  border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.file-btn {
+  padding: 7px 16px;
+  background: var(--accent);
+  color: #fff;
+  border-radius: 7px;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+#pager {
+  font-size: 14px;
+  color: #71717a;
+  min-width: 64px;
+  text-align: center;
+}
+
+.nav {
+  width: 34px;
+  height: 30px;
+  font-size: 18px;
+  line-height: 1;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  cursor: pointer;
+}
+
+.nav:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+#viewer {
+  padding: 16px;
+  display: flex;
+  justify-content: center;
+}
+
+#hint {
+  color: #a1a1aa;
+  font-size: 14px;
+}
+
+#page {
+  position: relative;
+  line-height: 0;
+  box-shadow: 0 1px 6px rgb(0 0 0 / 0.15);
+}
+
+#page:empty,
+#page:not(:has(canvas[width])) {
+  display: none;
+}
+
+canvas {
+  display: block;
+  max-width: 100%;
+  height: auto;
+}
+
+/* ---- PDF.js 文本层：透明覆盖在 canvas 上，提供可命中的 DOM 文字 ---- */
+.textLayer {
+  position: absolute;
+  text-align: initial;
+  inset: 0;
+  overflow: clip;
+  line-height: 1;
+  text-size-adjust: none;
+  forced-color-adjust: none;
+  transform-origin: 0 0;
+  z-index: 1;
+}
+
+.textLayer span,
+.textLayer br {
+  color: transparent;
+  position: absolute;
+  white-space: pre;
+  transform-origin: 0% 0%;
+}
+
+/* 命中单词的高亮框 */
+#hl {
+  position: absolute;
+  background: rgb(37 99 235 / 0.22);
+  border-radius: 3px;
+  pointer-events: none;
+  z-index: 2;
+}
+
+#popup {
+  position: fixed;
+  left: 50%;
+  bottom: 20px;
+  transform: translateX(-50%);
+  min-width: 260px;
+  max-width: min(90vw, 460px);
+  padding: 16px 20px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: 0 6px 24px rgb(0 0 0 / 0.18);
+  z-index: 20;
+}
+
+#popup .word {
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: 0.2px;
+}

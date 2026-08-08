@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="zh">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
+    />
+    <title>Dove — PDF 英语阅读</title>
+    <link rel="stylesheet" href="/src/style.css" />
+  </head>
+  <body>
+    <header id="bar">
+      <label class="file-btn">
+        打开 PDF
+        <input type="file" id="file" accept="application/pdf" hidden />
+      </label>
+      <button id="prev" class="nav" disabled>‹</button>
+      <span id="pager"></span>
+      <button id="next" class="nav" disabled>›</button>
+    </header>
+
+    <main id="viewer">
+      <div id="page">
+        <canvas id="canvas"></canvas>
+        <div id="text-layer" class="textLayer"></div>
+      </div>
+      <p id="hint">选择一个 PDF 文件开始，长按单词查词</p>
+    </main>
+
+    <div id="popup" hidden></div>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
