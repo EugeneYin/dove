@@ -1,7 +1,8 @@
 /**
- * 生成两份测试样张：
- *   public/sample.pdf         带文本层，覆盖跨行连字符、行内复合词、所有格、词形还原
- *   public/sample-scanned.pdf 把上面那份渲染成图片再封装，模拟扫描件，用于验证 OCR 路径
+ * 生成三份测试样张：
+ *   public/sample.pdf           带文本层，覆盖跨行连字符、行内复合词、所有格、词形还原
+ *   public/sample-scanned.pdf   把上面那份渲染成图片再封装，模拟扫描件，用于验证 OCR 路径
+ *   public/sample-pages.pdf     三页，每页一个不同的词，用于验证「记住读到第几页」
  */
 import { writeFile, readFile } from "node:fs/promises";
 import { createRequire } from "node:module";
@@ -76,6 +77,39 @@ await writeFile(
   ]),
 );
 console.log("已生成 public/sample.pdf");
+
+// ---- 多页样张：验证阅读位置能被记住并续读 ----
+// 每页只放一个好认的词，测试据此判断当前停在第几页。
+
+const PAGE_WORDS = ["alpha", "beta", "gamma"];
+
+function pageText(word) {
+  return Buffer.from(
+    ["BT", "/F1 32 Tf", `60 700 Td`, `(${escape(word)}) Tj`, "ET"].join("\n"),
+    "latin1",
+  );
+}
+
+{
+  // 对象编号：1 目录，2 页树，3 字体，之后每页两个对象（页 + 内容流）
+  const kids = PAGE_WORDS.map((_, i) => `${4 + i * 2} 0 R`).join(" ");
+  const objs = [
+    Buffer.from("<< /Type /Catalog /Pages 2 0 R >>"),
+    Buffer.from(`<< /Type /Pages /Kids [${kids}] /Count ${PAGE_WORDS.length} >>`),
+    Buffer.from("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>"),
+  ];
+  PAGE_WORDS.forEach((word, i) => {
+    objs.push(
+      Buffer.from(
+        "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] " +
+          `/Contents ${5 + i * 2} 0 R /Resources << /Font << /F1 3 0 R >> >> >>`,
+      ),
+      stream("", pageText(word)),
+    );
+  });
+  await writeFile("public/sample-pages.pdf", assemble(objs));
+  console.log("已生成 public/sample-pages.pdf");
+}
 
 // ---- 扫描件样张：渲染成位图后重新封装，页面上便只剩图像、没有文本层 ----
 

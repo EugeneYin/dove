@@ -1,0 +1,15 @@
+// Service Worker 跑在 worker 全局环境里，用的是 WebWorker 而非 DOM 的类型。
+// 两套 lib 有大量同名声明，不能与主配置合在一起检查，故单开一份。
+// sw.js 是 JS + JSDoc（原因见该文件顶部），靠 checkJs 拿到同等的类型检查。
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "lib": ["ES2022", "WebWorker"],
+    "types": [],
+    "allowJs": true,
+    "checkJs": true
+  },
+  // 主配置把 sw.js 排除掉了，这里必须清空继承来的 exclude
+  "include": ["src/sw.js", "src/sw-globals.d.ts"],
+  "exclude": []
+}

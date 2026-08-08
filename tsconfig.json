@@ -12,5 +12,7 @@
     "isolatedModules": true,
     "verbatimModuleSyntax": true
   },
-  "include": ["src"]
+  // sw.js 走 tsconfig.sw.json，它要的是 WebWorker 而不是 DOM 的类型
+  "include": ["src"],
+  "exclude": ["src/sw.js", "src/sw-globals.d.ts"]
 }

@@ -7,6 +7,7 @@ import { wordAtPoint } from "./word";
 import { loadDict, lookup as lookupWord } from "./dict";
 import { canSpeak, initSpeech, speak, voiceName } from "./speech";
 import { buildTextLayer, recognize, type OcrWord } from "./ocr";
+import { forgetDoc, recentDocs, rememberDoc, rememberPage } from "./library";
 
 // 自己创建 worker，好让 polyfill 先于 pdfjs worker 执行
 pdfjs.GlobalWorkerOptions.workerPort = new Worker(new URL("./pdf-worker.ts", import.meta.url), {
@@ -22,9 +23,14 @@ const textLayerEl = $<HTMLDivElement>("text-layer");
 const pagerEl = $<HTMLSpanElement>("pager");
 const popupEl = $<HTMLDivElement>("popup");
 const hintEl = $<HTMLParagraphElement>("hint");
+const recentEl = $<HTMLElement>("recent");
+const statusEl = $<HTMLDivElement>("status");
+const installEl = $<HTMLButtonElement>("install");
 
 let doc: PDFDocumentProxy | null = null;
 let pageNum = 1;
+/** 当前文档在最近文档库里的 id，用于记住读到第几页 */
+let docId: string | null = null;
 
 /**
  * 移动端浏览器对画布总面积有上限，超过后 getContext 照常成功、绘制却是全空白且不报错。
@@ -154,8 +160,9 @@ async function openFile(file: File) {
   // 解析新文档要花时间，期间旧文本层若还留着，长按会取到上一个文档的词
   textLayerEl.replaceChildren();
   dismiss();
+  recentEl.hidden = true;
   try {
-    const data = await file.arrayBuffer();
+    const [data, remembered] = await Promise.all([file.arrayBuffer(), rememberDoc(file)]);
     doc = await pdfjs.getDocument({
       data,
       standardFontDataUrl: "/standard_fonts/",
@@ -163,12 +170,47 @@ async function openFile(file: File) {
       cMapPacked: true,
       wasmUrl: "/wasm/",
     }).promise;
-    pageNum = 1;
+    docId = remembered.id;
+    // 续读上次的位置。文件可能被换过，页码得夹到实际范围内
+    pageNum = Math.min(Math.max(remembered.page, 1), doc.numPages);
     ocrCache.clear();
     await renderPage(pageNum);
   } catch (e) {
     showStatus(`打开失败：${(e as Error).message}`, true);
   }
+}
+
+const size = (bytes: number) =>
+  bytes < 1048576 ? `${Math.round(bytes / 1024)} KB` : `${(bytes / 1048576).toFixed(1)} MB`;
+
+/** 没有打开任何文档时列出最近读过的，装成 App 后这就是首屏 */
+async function showRecent() {
+  const all = await recentDocs();
+  if (!all.length) return;
+
+  recentEl.replaceChildren(el("h2", "", "最近阅读"));
+  for (const record of all) {
+    const open = el("button", "recent-open");
+    open.append(
+      el("span", "recent-name", record.name),
+      el("span", "recent-meta", `第 ${record.page} 页 · ${size(record.size)}`),
+    );
+    open.addEventListener("click", () => void openFile(record.file));
+
+    const remove = el("button", "recent-remove", "×");
+    remove.title = `移除 ${record.name}`;
+    remove.addEventListener("click", async () => {
+      await forgetDoc(record.id);
+      recentEl.replaceChildren();
+      await showRecent();
+    });
+
+    const row = el("div", "recent-row");
+    row.append(open, remove);
+    recentEl.append(row);
+  }
+  recentEl.hidden = false;
+  showStatus(null);
 }
 
 fileInput.addEventListener("change", () => {
@@ -180,7 +222,7 @@ initSpeech();
 
 // 词典约 3.8MB，首次加载需要时间，期间给出反馈
 const dictStatus = el("span", "dict-status", "词典加载中…");
-$("bar").append(dictStatus);
+statusEl.append(dictStatus);
 void loadDict().then(
   () => {
     dictStatus.remove();
@@ -193,12 +235,167 @@ void loadDict().then(
   },
 );
 
-// 开发环境自动载入样例文档，便于调试取词（生产构建会被剔除）
-if (import.meta.env.DEV) {
-  fetch("/sample.pdf")
-    .then((r) => r.blob())
-    .then((b) => openFile(new File([b], "sample.pdf")))
-    .catch(() => {});
+// ---------------- 启动 ----------------
+// 实际的调用在文件末尾：这里用到的常量都是 const，提前调用会撞上暂时性死区。
+
+async function start() {
+  // 从别的应用分享过来的文件优先，用户刚做完这个动作，等的就是它
+  const shared = await takeSharedFile();
+  if (shared) return void openFile(shared);
+
+  // 开发环境自动载入样例文档，便于调试取词（生产构建会被剔除）
+  if (import.meta.env.DEV) {
+    try {
+      const res = await fetch("/sample.pdf");
+      return void openFile(new File([await res.blob()], "sample.pdf"));
+    } catch {
+      // 没有样张就当普通启动
+    }
+  }
+
+  await showRecent();
+}
+
+/**
+ * PWA 的「用 Dove 打开」入口。系统直接把文件句柄递进来，
+ * 这正好补上了当初选网页方案时让掉的那点便利（见 docs/decisions.md）。
+ * iOS 不支持，那里仍然走「打开 PDF」按钮。
+ */
+interface LaunchParams {
+  files: readonly FileSystemFileHandle[];
+}
+const launchQueue = (window as { launchQueue?: { setConsumer(c: (p: LaunchParams) => void): void } })
+  .launchQueue;
+
+launchQueue?.setConsumer(({ files }) => {
+  const handle = files[0];
+  if (handle) void handle.getFile().then(openFile);
+});
+
+/**
+ * 分享进来的 PDF 由 Service Worker 暂存在缓存里再重定向回来（见 src/sw.js 的
+ * receiveShare）。这两个名字必须与那边一致——sw.js 不能有 import，没法共用常量。
+ */
+const SHARE_CACHE = "dove-share";
+const SHARE_KEY = "/__shared__";
+
+async function takeSharedFile(): Promise<File | null> {
+  if (!new URLSearchParams(location.search).has("shared")) return null;
+  // 清掉查询参数，免得刷新时又当成一次新的分享
+  history.replaceState(null, "", location.pathname);
+  try {
+    const cache = await caches.open(SHARE_CACHE);
+    const res = await cache.match(SHARE_KEY);
+    if (!res) return null;
+    await cache.delete(SHARE_KEY);
+    const name = decodeURIComponent(res.headers.get("x-filename") ?? "shared.pdf");
+    return new File([await res.blob()], name, { type: "application/pdf" });
+  } catch {
+    return null;
+  }
+}
+
+// ---------------- 安装与离线 ----------------
+
+interface InstallPromptEvent extends Event {
+  prompt(): Promise<unknown>;
+}
+
+let installPrompt: InstallPromptEvent | null = null;
+
+const standalone =
+  matchMedia("(display-mode: standalone)").matches ||
+  (navigator as { standalone?: boolean }).standalone === true;
+
+// iOS 上没有 beforeinstallprompt，添加到主屏只能由用户手动完成，只好给出指引。
+// iPadOS 的 UA 伪装成 macOS，靠触点数量把它区分出来。
+const isIOS =
+  /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+  (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+
+window.addEventListener("beforeinstallprompt", (e) => {
+  e.preventDefault();
+  installPrompt = e as InstallPromptEvent;
+  installEl.hidden = false;
+});
+
+window.addEventListener("appinstalled", () => {
+  installPrompt = null;
+  installEl.hidden = true;
+});
+
+installEl.addEventListener("click", async () => {
+  if (installPrompt) {
+    installEl.hidden = true;
+    const prompt = installPrompt;
+    installPrompt = null;
+    await prompt.prompt();
+    return;
+  }
+  showStatus("点底部的「分享」，选择「添加到主屏幕」，之后就能像 App 一样离线使用。");
+});
+
+if (!standalone && isIOS) installEl.hidden = false;
+
+if (import.meta.env.PROD && "serviceWorker" in navigator) void registerWorker();
+
+async function registerWorker() {
+  try {
+    const registration = await navigator.serviceWorker.register("/sw.js");
+
+    navigator.serviceWorker.addEventListener("message", (e) => onWorkerMessage(e.data));
+
+    // install 只拉了外壳，剩下十几 MB 的词典、字体与 OCR 引擎由页面在这里点火
+    const ready = await navigator.serviceWorker.ready;
+    ready.active?.postMessage({ type: "prefetch" });
+
+    registration.addEventListener("updatefound", () => {
+      const next = registration.installing;
+      if (!next) return;
+      next.addEventListener("statechange", () => {
+        // 有 controller 才说明这是一次更新，而不是首次安装
+        if (next.state === "installed" && navigator.serviceWorker.controller) offerUpdate(next);
+      });
+    });
+  } catch (e) {
+    console.warn("Service Worker 注册失败：", e);
+  }
+}
+
+const offlineStatus = el("span", "dict-status");
+statusEl.append(offlineStatus);
+
+function onWorkerMessage(data: unknown) {
+  const msg = data as { type?: string; done: number; total: number; failed: number; finished: boolean };
+  if (msg?.type !== "prefetch") return;
+
+  if (!msg.finished) {
+    offlineStatus.textContent = `离线资源 ${size(msg.done)} / ${size(msg.total)}`;
+    return;
+  }
+  if (msg.failed) {
+    offlineStatus.textContent = `离线资源缺 ${msg.failed} 项，下次启动继续`;
+    return;
+  }
+  offlineStatus.textContent = "已可离线使用";
+  setTimeout(() => (offlineStatus.textContent = ""), 4000);
+}
+
+/**
+ * 不自动切到新版本：当前页面已经加载了旧版的分块，中途换掉缓存会让它去取
+ * 已经不存在的文件。等用户点一下再刷新。
+ */
+function offerUpdate(worker: ServiceWorker) {
+  const button = el("button", "chip", "新版本 · 刷新");
+  button.addEventListener("click", () => worker.postMessage({ type: "skip-waiting" }));
+  statusEl.prepend(button);
+
+  let reloading = false;
+  navigator.serviceWorker.addEventListener("controllerchange", () => {
+    if (reloading) return;
+    reloading = true;
+    location.reload();
+  });
 }
 
 // ---------------- 长按取词 ----------------
@@ -316,6 +513,7 @@ function go(delta: number) {
   if (target < 1 || target > doc.numPages) return;
   pageNum = target;
   dismiss();
+  if (docId) void rememberPage(docId, pageNum);
   void renderPage(pageNum);
 }
 
@@ -326,3 +524,5 @@ document.addEventListener("keydown", (e) => {
   if (e.key === "ArrowRight") go(1);
   if (e.key === "ArrowLeft") go(-1);
 });
+
+void start();

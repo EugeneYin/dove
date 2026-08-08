@@ -6,4 +6,5 @@ public/wasm
 .cache
 public/dict.json.gz
 public/tesseract
+public/icons
 eng.traineddata
