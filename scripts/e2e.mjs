@@ -188,6 +188,89 @@ await check("词形还原", "conveys", doubleClick, (p) => p.word === "convey" &
 await check("尾随标点剥离", "ubiquitous.", doubleClick, (p) => p.word === "ubiquitous");
 await check("高亮框覆盖单词", "collocations", doubleClick, (p) => (p.highlight?.w ?? 0) > 20);
 
+// ---- 文本层与画布的对齐 ----
+// 基准取自画布上的真实墨迹，而不是文本层自身——用文本层算点击位置再验证文本层
+// 是自证，测不出整体错位。PDF.js 只把字号与横向修正写成自定义属性，样式表若没
+// 消费它们，文本层会比画布窄 5%，沿行累积成半个词的偏差。
+const INK_BANDS = () => {
+  const c = document.getElementById("canvas");
+  const ctx = c.getContext("2d");
+  const k = parseFloat(c.style.width) / c.width;
+  const img = ctx.getImageData(0, 0, c.width, c.height).data;
+  const dark = (x, y) => {
+    const i = (y * c.width + x) * 4;
+    return img[i] < 160 && img[i + 3] > 0;
+  };
+  const rows = [];
+  for (let y = 0; y < c.height; y++) {
+    let n = 0;
+    for (let x = 0; x < c.width; x += 2) if (dark(x, y)) n++;
+    rows.push(n > 2);
+  }
+  const bands = [];
+  let start = null;
+  for (let y = 0; y < c.height; y++) {
+    if (rows[y] && start === null) start = y;
+    else if (!rows[y] && start !== null) {
+      if (y - start > 6) bands.push([start, y]);
+      start = null;
+    }
+  }
+  return bands.slice(0, 4).map(([y0, y1]) => {
+    let x0 = c.width;
+    let x1 = 0;
+    for (let y = y0; y < y1; y++)
+      for (let x = 0; x < c.width; x++)
+        if (dark(x, y)) {
+          if (x < x0) x0 = x;
+          if (x > x1) x1 = x;
+        }
+    return { left: x0 * k, right: (x1 + 1) * k };
+  });
+};
+
+const LAYER_LINES = () => {
+  const page = document.getElementById("page").getBoundingClientRect();
+  const byLine = new Map();
+  for (const s of document.querySelectorAll("#text-layer span")) {
+    const b = s.getBoundingClientRect();
+    if (!b.width) continue;
+    const key = Math.round((b.top - page.top) / 10);
+    const cur = byLine.get(key) ?? { left: Infinity, right: 0 };
+    cur.left = Math.min(cur.left, b.left - page.left);
+    cur.right = Math.max(cur.right, b.right - page.left);
+    byLine.set(key, cur);
+  }
+  return [...byLine.entries()].sort((a, b) => a[0] - b[0]).map(([, v]) => v);
+};
+
+async function checkAlignment() {
+  const label = "文本层与画布对齐";
+  const ink = await evaluate(INK_BANDS);
+  const lines = await evaluate(LAYER_LINES);
+  if (!ink?.length || !lines?.length) {
+    return results.push({ label, ok: false, detail: "取不到墨迹或文本层" });
+  }
+
+  const worst = { ratio: 1, detail: "" };
+  for (let i = 0; i < Math.min(ink.length, lines.length); i++) {
+    const inkW = ink[i].right - ink[i].left;
+    const layerW = lines[i].right - lines[i].left;
+    const ratio = layerW / inkW;
+    if (Math.abs(ratio - 1) > Math.abs(worst.ratio - 1)) {
+      worst.ratio = ratio;
+      worst.detail = `第 ${i + 1} 行 墨迹 ${inkW.toFixed(0)}px vs 文本层 ${layerW.toFixed(0)}px`;
+    }
+  }
+  results.push({
+    label,
+    ok: Math.abs(worst.ratio - 1) < 0.03,
+    detail: `${worst.detail}，偏差 ${((worst.ratio - 1) * 100).toFixed(1)}%`,
+  });
+}
+
+await checkAlignment();
+
 // ---- 扫描件：没有文本层，取词全靠 OCR 合成 ----
 
 async function checkScanned() {

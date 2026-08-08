@@ -63,6 +63,12 @@ Safari 的。WebKit 直到 **Safari 18.4** 才支持 `ReadableStream` 的异步�
 PDF.js 在 canvas 之上铺一层透明的 `<span>` 文本层，因此取词直接用浏览器的
 `caretPositionFromPoint` + `Intl.Segmenter`，无需自己做字符级坐标命中。
 
+**文本层的 CSS 是一份契约**：`text_layer.js` 只在 span 上写出 `--font-height`、
+`--scale-x` 等自定义属性，真正的 `font-size` 与 `transform` 必须由样式表算出来
+（见 `src/style.css` 中取自 pdf.js `web/text_layer_builder.css` 的那段）。少了这条
+规则页面看不出异常，但文本层会比画布上的字窄约 5%，沿行累积，长按落点最终偏出半个词。
+`npm run e2e` 的对齐用例以画布像素的真实墨迹为基准，专门守这一点。
+
 两个需要特殊处理的情况：
 
 - **跨行连字符**：`under-` / `standing` 分属两个文本运行，需拼接成 `understanding`；

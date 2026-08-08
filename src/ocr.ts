@@ -107,6 +107,10 @@ export function buildTextLayer(
   canvasWidth: number,
   cssWidth: number,
 ) {
+  // PDF.js 渲染过的容器上留有它写入的行内 width/height 与 --min-font-size，
+  // 那是上一页的尺寸，必须清掉，让样式表里的 inset: 0 重新生效。
+  container.removeAttribute("style");
+
   const k = cssWidth / canvasWidth;
   const measure = document.createElement("canvas").getContext("2d");
   const frag = document.createDocumentFragment();

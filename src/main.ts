@@ -5,7 +5,7 @@ import * as pdfjs from "pdfjs-dist/legacy/build/pdf.mjs";
 import type { PDFDocumentProxy } from "pdfjs-dist";
 import { wordAtPoint } from "./word";
 import { loadDict, lookup as lookupWord } from "./dict";
-import { canSpeak, initSpeech, speak } from "./speech";
+import { canSpeak, initSpeech, speak, voiceName } from "./speech";
 import { buildTextLayer, recognize, type OcrWord } from "./ocr";
 
 // 自己创建 worker，好让 polyfill 先于 pdfjs worker 执行
@@ -247,6 +247,7 @@ function lookup(word: string, rects: DOMRect[]) {
 
   if (canSpeak()) {
     const btn = el("button", "speak", "🔊");
+    btn.title = voiceName() ?? "系统默认语音";
     btn.addEventListener("click", () => speak(entry?.word ?? word));
     head.append(btn);
   }

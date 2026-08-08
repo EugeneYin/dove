@@ -115,17 +115,28 @@ canvas {
   height: auto;
 }
 
-/* ---- PDF.js 文本层：透明覆盖在 canvas 上，提供可命中的 DOM 文字 ---- */
+/* ---- PDF.js 文本层：透明覆盖在 canvas 上，提供可命中的 DOM 文字 ----
+   规则取自 pdf.js 的 web/text_layer_builder.css。text_layer.js 只把字号与横向
+   修正写成自定义属性，真正的 font-size 和 transform 得由样式表算出来；少了下面
+   那条规则，文本层会比画布上的字窄约 5%，沿行累积成半个词的错位。
+   这里用平铺选择器而非 CSS 嵌套，较旧的 WebKit 不支持嵌套语法。 */
 .textLayer {
   position: absolute;
   text-align: initial;
   inset: 0;
   overflow: clip;
   line-height: 1;
+  letter-spacing: normal;
+  word-spacing: normal;
   text-size-adjust: none;
   forced-color-adjust: none;
   transform-origin: 0 0;
   z-index: 1;
+
+  /* 先按 --min-font-size 放大字号再整体缩回，用于绕开浏览器的最小字号限制 */
+  --min-font-size: 1;
+  --text-scale-factor: calc(var(--total-scale-factor) * var(--min-font-size));
+  --min-font-size-inv: calc(1 / var(--min-font-size));
 }
 
 .textLayer span,
@@ -134,6 +145,21 @@ canvas {
   position: absolute;
   white-space: pre;
   transform-origin: 0% 0%;
+}
+
+/* OCR 合成的 span 也会命中此规则，但它们的 font-size 与 transform 是行内设置，
+   优先级更高，因此不受影响。 */
+.textLayer > :not(.markedContent),
+.textLayer .markedContent span:not(.markedContent) {
+  --font-height: 0;
+  --scale-x: 1;
+  --rotate: 0deg;
+  font-size: calc(var(--text-scale-factor) * var(--font-height));
+  transform: rotate(var(--rotate)) scaleX(var(--scale-x)) scale(var(--min-font-size-inv));
+}
+
+.textLayer .markedContent {
+  display: contents;
 }
 
 /* 命中单词的高亮框 */
