@@ -45,6 +45,19 @@ npm run sample  # 重新生成测试样张 public/sample.pdf
 | `scripts/copy-assets.mjs` | 拷贝 PDF.js 与 Tesseract 的运行时资源到 `public/` |
 | `scripts/make-sample.mjs` | 生成两份测试样张（带文本层 / 扫描件） |
 
+## 浏览器兼容
+
+iOS/iPadOS 上所有浏览器（包括 Chrome）都被强制使用 WebKit，因此 iPad 的实际内核是
+Safari 的。WebKit 直到 **Safari 18.4** 才支持 `ReadableStream` 的异步迭代，而 PDF.js
+在 `getTextContent` 和它的 worker 里都用了这个特性——缺了它一打开 PDF 就报
+`undefined is not a function`。
+
+这是运行时 API 而非语法，降低编译目标或改用 legacy 构建都无济于事，只能 polyfill
+（`src/polyfills.ts`）。worker 有独立的全局环境，主线程的 polyfill 到不了，所以 worker
+经由 `src/pdf-worker.ts` 启动，先打补丁再加载 pdfjs worker。
+
+`npm run e2e` 里有一项会在页面脚本之前抹掉原生的异步迭代能力，以此守住这条兼容路径。
+
 ## 取词原理
 
 PDF.js 在 canvas 之上铺一层透明的 `<span>` 文本层，因此取词直接用浏览器的

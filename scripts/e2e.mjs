@@ -235,6 +235,38 @@ async function checkScanned() {
 
 await checkScanned();
 
+// ---- 旧 WebKit 模拟 ----
+// iOS 上所有浏览器都用 WebKit，而它直到 Safari 18.4 才支持 ReadableStream 异步迭代。
+// 这里在页面脚本之前抹掉该能力，验证 polyfill 确实先于 pdfjs 生效。
+async function checkOldWebKit() {
+  const label = "旧 WebKit 兼容";
+  await send("Page.addScriptToEvaluateOnNewDocument", {
+    source: `delete ReadableStream.prototype[Symbol.asyncIterator];
+             delete ReadableStream.prototype.values;`,
+  });
+  await send("Page.navigate", { url: URL_ });
+
+  const start = Date.now();
+  while (Date.now() - start < 30000) {
+    const st = await evaluate(() => ({
+      spans: document.querySelectorAll("#text-layer span").length,
+      hint: document.getElementById("hint").hidden
+        ? null
+        : document.getElementById("hint").textContent,
+    }));
+    if (st.spans > 0) {
+      return results.push({ label, ok: true, detail: `无原生异步迭代仍渲染出 ${st.spans} 个文本项` });
+    }
+    if (st.hint?.includes("失败")) {
+      return results.push({ label, ok: false, detail: st.hint });
+    }
+    await sleep(500);
+  }
+  results.push({ label, ok: false, detail: "30s 内未渲染出文本层" });
+}
+
+await checkOldWebKit();
+
 console.log();
 let failed = 0;
 for (const r of results) {

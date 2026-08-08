@@ -1,13 +1,17 @@
+// polyfill 必须最先执行，pdfjs 一调 getTextContent 就会用到
+import "./polyfills";
 // 用 legacy 构建：现代构建的语法在较旧的浏览器内核上会直接解析失败
 import * as pdfjs from "pdfjs-dist/legacy/build/pdf.mjs";
-import workerUrl from "pdfjs-dist/legacy/build/pdf.worker.mjs?url";
 import type { PDFDocumentProxy } from "pdfjs-dist";
 import { wordAtPoint } from "./word";
 import { loadDict, lookup as lookupWord } from "./dict";
 import { canSpeak, initSpeech, speak } from "./speech";
 import { buildTextLayer, recognize, type OcrWord } from "./ocr";
 
-pdfjs.GlobalWorkerOptions.workerSrc = workerUrl;
+// 自己创建 worker，好让 polyfill 先于 pdfjs worker 执行
+pdfjs.GlobalWorkerOptions.workerPort = new Worker(new URL("./pdf-worker.ts", import.meta.url), {
+  type: "module",
+});
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 
