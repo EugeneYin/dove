@@ -16,7 +16,7 @@ PDF.js 在 canvas 之上会额外铺一层透明的 `<span>` 文本层，每段�
 
 | 文件 | 行数 | 职责 |
 |---|---|---|
-| `src/main.ts` | 528 | 渲染调度、手势、词卡 UI、状态提示、安装与离线接线 |
+| `src/main.ts` | 548 | 渲染调度、手势、词卡 UI、状态提示、安装与离线接线 |
 | `src/sw.js` | 224 | Service Worker：预缓存、请求拦截、分享目标 |
 | `src/library.ts` | 149 | 最近文档与阅读位置（IndexedDB） |
 | `src/word.ts` | 124 | 屏幕坐标 → 单词，含连字符拼接与所有格剥离 |
@@ -146,14 +146,14 @@ OCR 合成的 span 也会命中同一条规则，但它们的 `font-size` 与 `t
 
 | 批次 | 内容 | 体积 | 时机 |
 |---|---|---|---|
-| SHELL | `index.html`、带 hash 的 JS/CSS、manifest、图标 | ~1.9MB | `install` 阶段阻塞，拿不全就不算装上 |
-| EXTRAS | 词典、cmaps、字体、wasm、OCR 引擎与语言包 | ~12MB | 页面加载完成后发消息触发，不阻塞 |
+| SHELL | `index.html`、带 hash 的 JS/CSS、manifest、图标 | ~1.8MB | `install` 阶段阻塞，拿不全就不算装上 |
+| EXTRAS | 词典、cmaps、字体、wasm、OCR 引擎与语言包 | ~12.7MB | 页面加载完成后发消息触发，不阻塞 |
 
 EXTRAS 逐个文件跳过已缓存的，因此**中断后下次打开会自动续上**。若把全部十几 MB
 压在 `install` 里，移动网络断一次就前功尽弃，而且 Service Worker 永远装不上——
 装不上就没有任何离线能力，比慢慢补齐糟得多。
 
-进度由 SW 用 `postMessage` 推给页面（含已完成与总字节数），顶栏显示「离线资源 8.2 / 12.4 MB」。
+进度由 SW 用 `postMessage` 推给页面（含已完成与总字节数），顶栏显示「离线资源 8.2 / 12.7 MB」。
 
 ### OCR 核心变体
 
@@ -227,4 +227,4 @@ iOS/iPadOS 上所有浏览器都被强制使用 WebKit。WebKit 直到 Safari 18
 | Tesseract 核心 | ~3.7MB | 首次遇到扫描页 | EXTRAS（三选一） |
 | 英语语言包 | 2.1MB | 首次遇到扫描页 | EXTRAS |
 
-全部自托管，不走 CDN。装成 PWA 后离线占用约 12.7MB（实测），加上最近文档的 PDF 本身。
+全部自托管，不走 CDN。装成 PWA 后离线占用约 14.5MB（实测：外壳 1.8MB + 离线资源 12.7MB），加上最近文档的 PDF 本身。

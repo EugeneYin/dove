@@ -186,9 +186,12 @@ const size = (bytes: number) =>
 /** 没有打开任何文档时列出最近读过的，装成 App 后这就是首屏 */
 async function showRecent() {
   const all = await recentDocs();
+  // 删掉最后一本时要把整块收起来，否则会留下一个空的可见区域
+  recentEl.hidden = true;
+  recentEl.replaceChildren();
   if (!all.length) return;
 
-  recentEl.replaceChildren(el("h2", "", "最近阅读"));
+  recentEl.append(el("h2", "", "最近阅读"));
   for (const record of all) {
     const open = el("button", "recent-open");
     open.append(
@@ -201,7 +204,6 @@ async function showRecent() {
     remove.title = `移除 ${record.name}`;
     remove.addEventListener("click", async () => {
       await forgetDoc(record.id);
-      recentEl.replaceChildren();
       await showRecent();
     });
 
@@ -352,7 +354,8 @@ installEl.addEventListener("click", async () => {
 // 已经装好了就不必再提示，其余情况一律显示按钮——装不了也要让用户点得到解释
 installEl.hidden = standalone;
 
-if (import.meta.env.PROD && "serviceWorker" in navigator) void registerWorker();
+// 注册的调用同样放在文件末尾：registerWorker 的回调会用到下面才声明的 offlineStatus，
+// 眼下靠 await 的时序侥幸不出错，但那正是本轮踩过的暂时性死区的同款写法。
 
 async function registerWorker() {
   try {
@@ -539,5 +542,7 @@ document.addEventListener("keydown", (e) => {
   if (e.key === "ArrowRight") go(1);
   if (e.key === "ArrowLeft") go(-1);
 });
+
+if (import.meta.env.PROD && "serviceWorker" in navigator) void registerWorker();
 
 void start();
