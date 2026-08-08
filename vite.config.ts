@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { readFileSync } from "node:fs";
 import { readdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { defineConfig, type Plugin } from "vite";
@@ -7,6 +8,22 @@ import { defineConfig, type Plugin } from "vite";
 // 注意这只降级语法，Intl.Segmenter / DecompressionStream 等运行时 API 无法由此获得，
 // 缺失时由 index.html 里的兜底脚本给出明确提示。
 const TARGET = ["chrome90", "safari15", "firefox90"];
+
+/**
+ * Service Worker 只在安全上下文里注册，局域网 IP 走 http 就装不了 PWA。
+ * `scripts/serve.mjs` 会先用 mkcert 签好证书再设上这个变量；
+ * 普通的 `npm run preview` 不设，仍然是明文 http。
+ */
+function previewHttps() {
+  if (!process.env.DOVE_HTTPS) return undefined;
+  return {
+    key: readFileSync(join(CERT_DIR, "key.pem")),
+    cert: readFileSync(join(CERT_DIR, "cert.pem")),
+  };
+}
+
+/** 与 scripts/serve.mjs 约定的证书位置 */
+const CERT_DIR = ".cache/certs";
 
 /** 不进预缓存：sw.js 自己，以及 e2e 的样张——没必要占用户的离线存储 */
 const SKIP = new Set(["sw.js", "sample.pdf", "sample-scanned.pdf", "sample-pages.pdf"]);
@@ -86,9 +103,12 @@ function serviceWorker(): Plugin {
 export default defineConfig({
   // 绑定所有网卡，便于用局域网 IP 在 Android Pad 真机上调试
   server: { host: true },
-  // Service Worker 只在安全上下文里注册，局域网 IP 是 http，测不了 PWA。
-  // 真机验证得靠隧道拿一个 https 地址，这里放行它的域名——否则 Vite 会 403。
-  preview: { allowedHosts: [".trycloudflare.com"] },
+  preview: {
+    host: true,
+    // 隧道域名不放行的话 Vite 会以 403 挡掉
+    allowedHosts: [".trycloudflare.com"],
+    https: previewHttps(),
+  },
   esbuild: { target: TARGET },
   build: { target: TARGET },
   optimizeDeps: { esbuildOptions: { target: TARGET } },

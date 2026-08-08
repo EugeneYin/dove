@@ -116,6 +116,22 @@ npm run sample   # 重新生成测试样张
 Service Worker 只在生产构建中启用，`npm run dev` 下不注册——否则改一行代码就要跟缓存
 搏斗。要验证离线行为请用 `npm run e2e:pwa` 或 `npm run build && npm run preview`。
 
+### 在手机 / Pad 上装起来
+
+**Service Worker 只在安全上下文里注册**，`http://192.168.x.x` 不算（只有 `localhost` 与
+HTTPS 算）。所以 `npm run dev` 打印的那个局域网地址测取词可以，测安装不行——
+`beforeinstallprompt` 根本不会触发，安装按钮点下去只会告诉你差一个 https。
+
+```bash
+npm run serve         # 局域网 https，mkcert 签本机证书
+npm run serve:tunnel  # cloudflared 公网隧道，设备端零配置
+```
+
+| | 设备端要做什么 | 代价 |
+|---|---|---|
+| `serve` | 装一次根证书（脚本会打印路径与步骤） | 换 Wi-Fi / IP 变了要重签，脚本每次自动重签 |
+| `serve:tunnel` | 什么都不用做 | 地址每次都变；隧道会把词典解压成 9.9MB 传输，预缓存约 19MB 而非 12.7MB |
+
 ## 交互
 
 | 设备 | 取词方式 |

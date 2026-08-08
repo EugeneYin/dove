@@ -40,6 +40,7 @@ PDF.js 在 canvas 之上会额外铺一层透明的 `<span>` 文本层，每段�
 | `scripts/make-sample.mjs` | 生成三份测试样张（带文本层 / 扫描件 / 多页） |
 | `scripts/e2e.mjs` | CDP 驱动无头 Chrome 的端到端测试 |
 | `scripts/e2e-pwa.mjs` | 同上，但会杀掉服务器验证真离线 |
+| `scripts/serve.mjs` | 起一个能真正安装 PWA 的服务器（局域网 https / 隧道） |
 
 `vite.config.ts` 里的 `dove-sw` 插件在 `closeBundle` 阶段生成 `dist/sw.js`：遍历构建完成的
 `dist/`，把文件名与体积注入 `sw.js` 顶部。挂在 `closeBundle` 而非 `generateBundle`，是因为
