@@ -316,13 +316,27 @@ const isIOS =
 window.addEventListener("beforeinstallprompt", (e) => {
   e.preventDefault();
   installPrompt = e as InstallPromptEvent;
-  installEl.hidden = false;
 });
 
 window.addEventListener("appinstalled", () => {
   installPrompt = null;
   installEl.hidden = true;
 });
+
+/**
+ * 装不了的时候要说清为什么。
+ *
+ * 最常见的情形是用局域网 IP 打开：那不是安全上下文，Service Worker 注册不了，
+ * beforeinstallprompt 也就永远不会触发。按钮若只是默默隐藏，用户只会以为
+ * 「这应用没有安装功能」，而真正的原因（差一个 https）完全无从得知。
+ */
+function whyNotInstallable(): string {
+  if (isIOS) return "点底部的「分享」，选择「添加到主屏幕」，之后就能像 App 一样离线使用。";
+  if (!window.isSecureContext) {
+    return `当前是 ${location.protocol}//${location.host}，浏览器只允许在 HTTPS（或 localhost）下安装应用。换成 https 地址打开即可安装。`;
+  }
+  return "这个浏览器没有提供安装入口。Chrome、Edge 可以安装；Firefox 与 iOS 上的 Safari 请用菜单里的「添加到主屏幕」。";
+}
 
 installEl.addEventListener("click", async () => {
   if (installPrompt) {
@@ -332,10 +346,11 @@ installEl.addEventListener("click", async () => {
     await prompt.prompt();
     return;
   }
-  showStatus("点底部的「分享」，选择「添加到主屏幕」，之后就能像 App 一样离线使用。");
+  showStatus(whyNotInstallable());
 });
 
-if (!standalone && isIOS) installEl.hidden = false;
+// 已经装好了就不必再提示，其余情况一律显示按钮——装不了也要让用户点得到解释
+installEl.hidden = standalone;
 
 if (import.meta.env.PROD && "serviceWorker" in navigator) void registerWorker();
 
