@@ -5,3 +5,5 @@ public/cmaps
 public/wasm
 .cache
 public/dict.json.gz
+public/tesseract
+eng.traineddata

@@ -18,12 +18,14 @@
   "license": "ISC",
   "packageManager": "pnpm@10.33.0",
   "devDependencies": {
+    "@napi-rs/canvas": "^1.0.3",
     "@types/node": "^26.2.0",
     "typescript": "^7.0.2",
     "vite": "^8.2.1"
   },
   "dependencies": {
-    "pdfjs-dist": "^6.2.108"
+    "pdfjs-dist": "^6.2.108",
+    "tesseract.js": "^7.0.0"
   },
   "type": "module"
 }

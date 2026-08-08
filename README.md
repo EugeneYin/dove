@@ -38,10 +38,12 @@ npm run sample  # 重新生成测试样张 public/sample.pdf
 |---|---|
 | `src/word.ts` | 从屏幕坐标取出单词，处理跨行连字符与所有格 |
 | `src/dict.ts` | 离线词典查询，含词形还原 |
+| `src/ocr.ts` | 扫描件 OCR，并把结果合成为文本层 |
 | `src/speech.ts` | Web Speech API 发音 |
 | `src/main.ts` | PDF 渲染、长按手势、词卡 UI |
 | `scripts/build-dict.mjs` | 从 ECDICT 裁剪生成词典 |
-| `scripts/copy-assets.mjs` | 拷贝 PDF.js 的字体/编码资源到 `public/` |
+| `scripts/copy-assets.mjs` | 拷贝 PDF.js 与 Tesseract 的运行时资源到 `public/` |
+| `scripts/make-sample.mjs` | 生成两份测试样张（带文本层 / 扫描件） |
 
 ## 取词原理
 
@@ -53,6 +55,24 @@ PDF.js 在 canvas 之上铺一层透明的 `<span>` 文本层，因此取词直�
 - **跨行连字符**：`under-` / `standing` 分属两个文本运行，需拼接成 `understanding`；
   而行内的 `well-known` 不能拼接。判断依据是连字符是否位于文本运行末尾。
 - **所有格**：`Intl.Segmenter` 把 `learner’s` 整体识别为一个词，查词典前必须剥掉 `’s`。
+
+## 扫描版 PDF
+
+扫描件页面上只有图像，没有文本层，长按无从命中。这类页面会自动走 Tesseract OCR，
+把识别出的词按坐标合成一个透明文本层——**结构与 PDF.js 生成的一致，所以 `word.ts`
+里的取词、连字符拼接、所有格剥离等逻辑全部原样复用**，OCR 只负责把图像变成带坐标的文字。
+
+几个要点：
+
+- 置信度低于 60 的词会被丢弃。插图里的线条常被误读成碎字符，不滤掉的话长按插图
+  会弹出无意义的词条。
+- 识别结果按页缓存，并连同当时的画布宽度一起存——词坐标属于那张画布的像素空间，
+  屏幕旋转导致画布重建后，旧坐标不再适用。
+- 引擎与语言包合计约 5.6MB，只在真正遇到扫描页时才懒加载，带文本层的 PDF 不受影响。
+- 语言包用 `tessdata_fast`（1.9MB）。实测正文识别置信度 95 以上，标准版体积是它的
+  6 倍，不划算。
+- 必须从 `tesseract.js` 的依赖树里解析 `tesseract.js-core`：tesseract.js 7 会请求
+  `relaxedsimd` 变体，而 core 在 npm 上的 `latest`（6.1.2）并不提供该文件。
 
 ## 词典
 

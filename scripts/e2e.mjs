@@ -188,6 +188,53 @@ await check("词形还原", "conveys", doubleClick, (p) => p.word === "convey" &
 await check("尾随标点剥离", "ubiquitous.", doubleClick, (p) => p.word === "ubiquitous");
 await check("高亮框覆盖单词", "collocations", doubleClick, (p) => (p.highlight?.w ?? 0) > 20);
 
+// ---- 扫描件：没有文本层，取词全靠 OCR 合成 ----
+
+async function checkScanned() {
+  const label = "扫描件 OCR 取词";
+  await evaluate(async () => {
+    const blob = await (await fetch("/sample-scanned.pdf")).blob();
+    const input = document.getElementById("file");
+    const dt = new DataTransfer();
+    dt.items.add(new File([blob], "sample-scanned.pdf", { type: "application/pdf" }));
+    input.files = dt.files;
+    input.dispatchEvent(new Event("change"));
+  });
+
+  // OCR 要下载数 MB 的引擎再识别，给足时间
+  const start = Date.now();
+  let words = 0;
+  while (Date.now() - start < 90000) {
+    words = await evaluate(() => document.querySelectorAll("#text-layer span").length);
+    if (words > 5) break;
+    await sleep(1000);
+  }
+  if (words <= 5) {
+    return results.push({ label, ok: false, detail: `90s 内未识别出文字（${words} 个）` });
+  }
+
+  const pos = await evaluate(() => {
+    const s = [...document.querySelectorAll("#text-layer span")].find((x) =>
+      /^[A-Za-z]{5,}$/.test(x.textContent),
+    );
+    if (!s) return null;
+    const r = s.getBoundingClientRect();
+    return { word: s.textContent, x: r.left + r.width / 2, y: r.top + r.height / 2 };
+  });
+  if (!pos) return results.push({ label, ok: false, detail: "识别结果里没有可用的英文单词" });
+
+  await doubleClick(pos.x, pos.y);
+  await sleep(500);
+  const popup = await evaluate(readPopup);
+  results.push({
+    label,
+    ok: !!popup && popup.word.toLowerCase() === pos.word.toLowerCase(),
+    detail: `识别 ${words} 词，耗时 ${((Date.now() - start) / 1000).toFixed(1)}s，双击 "${pos.word}" → ${popup ? popup.word + " " + (popup.empty ?? popup.trans) : "无词卡"}`,
+  });
+}
+
+await checkScanned();
+
 console.log();
 let failed = 0;
 for (const r of results) {

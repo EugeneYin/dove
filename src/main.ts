@@ -5,6 +5,7 @@ import type { PDFDocumentProxy } from "pdfjs-dist";
 import { wordAtPoint } from "./word";
 import { loadDict, lookup as lookupWord } from "./dict";
 import { canSpeak, initSpeech, speak } from "./speech";
+import { buildTextLayer, recognize, type OcrWord } from "./ocr";
 
 pdfjs.GlobalWorkerOptions.workerSrc = workerUrl;
 
@@ -86,19 +87,54 @@ async function renderPage(n: number) {
     const textContent = await page.getTextContent();
     if (stale()) return;
 
-    const textLayer = new pdfjs.TextLayer({ textContentSource: textContent, container: textLayerEl, viewport });
-    await textLayer.render();
-    if (stale()) return;
-
     pagerEl.textContent = `${n} / ${doc.numPages}`;
     $<HTMLButtonElement>("prev").disabled = n <= 1;
     $<HTMLButtonElement>("next").disabled = n >= doc.numPages;
 
-    // 扫描版 PDF 只有图像、没有文本层，取词无从谈起，必须说清楚而不是让用户干按
-    showStatus(textContent.items.length === 0 ? "本页是图片，没有可选的文字，无法取词。" : null);
+    if (textContent.items.length > 0) {
+      const textLayer = new pdfjs.TextLayer({
+        textContentSource: textContent,
+        container: textLayerEl,
+        viewport,
+      });
+      await textLayer.render();
+      if (stale()) return;
+      showStatus(null);
+    } else {
+      // 扫描版 PDF 没有文本层，只能靠 OCR 把图像上的文字还原成可取词的坐标
+      await runOcr(n, viewport.width, stale);
+    }
   } catch (e) {
     if (e instanceof pdfjs.RenderingCancelledException || stale()) return;
     showStatus(`第 ${n} 页渲染失败：${(e as Error).message}`, true);
+  }
+}
+
+// OCR 一页要数百毫秒到数秒，翻回来时不该重跑。
+// 词坐标属于识别时那张画布的像素空间，缩放变了就不再适用，故一并记下画布宽度。
+const ocrCache = new Map<number, { words: OcrWord[]; canvasWidth: number }>();
+
+async function runOcr(n: number, cssWidth: number, stale: () => boolean) {
+  const show = (words: OcrWord[], canvasWidth: number) => {
+    buildTextLayer(textLayerEl, words, canvasWidth, cssWidth);
+    showStatus(words.length ? null : "本页没有识别到文字。");
+  };
+
+  const cached = ocrCache.get(n);
+  if (cached) return show(cached.words, cached.canvasWidth);
+
+  try {
+    const canvasWidth = canvas.width;
+    const words = await recognize(canvas, (msg) => {
+      if (!stale()) showStatus(msg);
+    });
+    if (stale()) return;
+
+    ocrCache.set(n, { words, canvasWidth });
+    show(words, canvasWidth);
+  } catch (e) {
+    if (stale()) return;
+    showStatus(`文字识别失败：${(e as Error).message}`, true);
   }
 }
 
@@ -111,6 +147,9 @@ function showStatus(message: string | null, isError = false) {
 
 async function openFile(file: File) {
   showStatus(`正在打开 ${file.name}…`);
+  // 解析新文档要花时间，期间旧文本层若还留着，长按会取到上一个文档的词
+  textLayerEl.replaceChildren();
+  dismiss();
   try {
     const data = await file.arrayBuffer();
     doc = await pdfjs.getDocument({
@@ -121,6 +160,7 @@ async function openFile(file: File) {
       wasmUrl: "/wasm/",
     }).promise;
     pageNum = 1;
+    ocrCache.clear();
     await renderPage(pageNum);
   } catch (e) {
     showStatus(`打开失败：${(e as Error).message}`, true);
