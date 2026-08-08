@@ -14,6 +14,7 @@ Dove 只解决一件事：**让「读到生词」和「查到词义」之间的�
 | **扫描版 PDF 必须能用** | 中文用户手上的英文原著、影印教材大多是扫描件，不支持等于不可用 |
 | **查词必须离线且即时** | 联网查词有延迟、要授权、会断网，打断阅读节奏 |
 | **网页形态，不做原生应用** | 免安装、免上架，一个链接跨 iPad / iPhone / Mac / Android |
+| **装上之后彻底不依赖网络**（v2.0） | 读书的场合常常没网：飞机、地铁、山里。有一处要联网，约束就等于没有 |
 
 不做的事：阅读进度云同步、批注、社交、付费体系。
 
@@ -25,11 +26,38 @@ Dove 只解决一件事：**让「读到生词」和「查到词义」之间的�
 - **扫描件 OCR** — 无文本层的页面自动识别，取词体验与普通 PDF 一致
 - **发音** — Web Speech API，自动挑选系统里的自然音色
 - **跨行断词还原** — 行尾 `under-` 与次行 `standing` 合并为 `understanding`
+- **可安装、全离线**（v2.0）— 装到主屏后连词典与 OCR 引擎一起离线可用
+- **最近阅读**（v2.0）— 读过的书存在本地，点开即续读到上次的页码
+
+## v2.0：装到主屏，彻底离线
+
+在浏览器里打开一次，点顶栏的**安装**（iOS 走「分享 → 添加到主屏幕」），之后就是一个
+独立图标的应用。首次安装约 1.9MB，随后在后台补齐约 12MB 的离线资源，顶栏会显示进度；
+补齐后断网也能查词、翻页、识别扫描件。
+
+| 能力 | 说明 |
+|---|---|
+| 离线阅读与查词 | 应用、词典、字体、OCR 引擎全部进 Cache Storage |
+| 最近阅读 | PDF 与页码存在 IndexedDB，最多 10 本 / 400MB，超出淘汰最久未读的 |
+| 系统文件入口 | Android / 桌面可从文件管理器「用 Dove 打开」，或从别的应用分享过来 |
+| 版本更新 | 有新版本时顶栏出现「新版本 · 刷新」，由用户决定何时切换 |
+
+离线资源分两批下载：**外壳**（应用本体，约 1.9MB）在 Service Worker 安装时必须拿全，
+**其余**（词典 3.7MB、cmaps、字体、OCR 引擎约 6MB）由页面在加载完成后触发，逐个文件跳过
+已缓存的——弱网中断后下次打开会自动续上，而不是从头再来。
+
+> OCR 核心有 SIMD / relaxed-SIMD / 基础三个变体各约 4MB，运行时只会用其中一个。
+> Service Worker 自己做 WebAssembly 特性探测，只缓存会被选中的那一个。
 
 ## 架构
 
 ```mermaid
 flowchart TB
+    subgraph offline["离线层 sw.js"]
+        SW["Service Worker"] --> CS["Cache Storage<br/>外壳 + 词典 + 字体 + OCR"]
+        IDB["IndexedDB<br/>最近文档 + 页码"]
+    end
+
     subgraph render["渲染层"]
         PDF["PDF 文件"] --> PDFJS["PDF.js"]
         PDFJS --> Canvas["canvas 位图"]
@@ -56,6 +84,11 @@ flowchart TB
     Synth --> Caret
     Norm --> Dict
     Gesture["长按 / 双击"] --> Caret
+
+    CS -.离线供给.-> PDFJS
+    CS -.离线供给.-> Dict
+    CS -.离线供给.-> OCR
+    IDB --> PDF
 ```
 
 设计上最关键的一点：**OCR 不另起一套取词逻辑**。识别结果被合成为与 PDF.js
@@ -75,9 +108,13 @@ npm run dev
 ```bash
 npm test         # 单元测试（node --test，无额外依赖）
 npm run e2e      # 端到端测试，需先 npm run dev
+npm run e2e:pwa  # 离线端到端测试，自行构建并起 preview
 npm run build    # 生产构建到 dist/
 npm run sample   # 重新生成测试样张
 ```
+
+Service Worker 只在生产构建中启用，`npm run dev` 下不注册——否则改一行代码就要跟缓存
+搏斗。要验证离线行为请用 `npm run e2e:pwa` 或 `npm run build && npm run preview`。
 
 ## 交互
 
@@ -87,6 +124,9 @@ npm run sample   # 重新生成测试样张
 | 触屏（平板 / 手机） | 长按 400ms |
 
 已验证平台：macOS Chrome、iPadOS、iOS。
+
+安装方式因平台而异：Chrome / Edge（Android、桌面）会触发顶栏的**安装**按钮；
+iOS / iPadOS 没有对应接口，只能在 Safari 里「分享 → 添加到主屏幕」，点安装按钮会给出指引。
 
 ## 文档
 
@@ -101,6 +141,7 @@ npm run sample   # 重新生成测试样张
 
 Vite + TypeScript，不使用前端框架（[理由](docs/decisions.md#不使用前端框架)）。
 运行时依赖只有 `pdfjs-dist` 与 `tesseract.js`，全部资源自托管，断网可用。
+Service Worker 为手写，未引入 Workbox 或 vite-plugin-pwa（[理由](docs/decisions.md#手写-service-worker)）。
 
 ## 许可与数据来源
 

@@ -73,6 +73,55 @@ Node 24 自带 WebSocket，直接用 Chrome DevTools Protocol 驱动本机 Chrom
 这个选择很快证明了价值：第一次运行就抓到了词典因 gzip 双重解压而完全加载不了的
 bug——那是单元测试和类型检查都覆盖不到的问题。
 
+## 手写 Service Worker
+
+没有用 `vite-plugin-pwa` / Workbox。需求就三件事：预缓存一份清单、cache-first、
+拦一个分享 POST。手写 224 行，配一个 60 行的构建插件，全部逻辑都看得见。
+
+Workbox 会带来一层运行时抽象和几百 KB 的构建依赖，而它擅长的那些场景——多种缓存策略
+共存、按路由配过期、后台同步——这里一个都用不上。分层预缓存和「只缓存一个 OCR 核心变体」
+反倒是它的默认清单生成器不方便表达的。
+
+代价是更新逻辑得自己写对（`skipWaiting` 时机、旧缓存清理），这些都写进了上面的注释和
+[pitfalls.md](pitfalls.md)。
+
+## sw.js 是 JS 而非 TS
+
+项目其余部分都是 TypeScript。Vite 8 换用 rolldown 之后 esbuild 不再随包安装，
+而 TypeScript 7 是 Go 重写版，不再提供 `transpileModule` 之类的 JS API——想把
+`sw.ts` 转成 JS，要么新增 esbuild 依赖，要么在构建插件里 spawn 一个编译器。
+
+为一个 6KB、零 import 的文件做这些不划算。改用 JSDoc 标注类型 + `checkJs`，
+类型检查一分不少（`npm run typecheck` 同时跑主配置与 `tsconfig.sw.json`），
+构建时原样输出，只在顶部拼上注入的常量。
+
+## 预缓存分成 SHELL 与 EXTRAS 两批
+
+最初想把全部资源都放进 `install`。问题是 `install` 失败则 Service Worker 装不上，
+一点离线能力都没有；而移动网络下下载 14MB 中断一次是常事，等于永远装不上。
+
+改为外壳（1.9MB）阻塞、其余（12MB）由页面触发且逐文件跳过已缓存的。弱网下最坏情况
+是分几次开应用才补齐，而不是全有或全无。
+
+反过来也考虑过全部按需缓存（用到才存），但那样「第一次遇到扫描件时恰好没网」就是死路，
+而扫描件可用是 README 里的不妥协约束。
+
+## Service Worker 自己做 SIMD 探测
+
+`tesseract.js` 的三个核心变体各约 4MB，运行时只用一个。让页面探测再告诉 SW 要多一轮
+消息往返，而 SW 本身就是 worker 环境，`WebAssembly.validate` 直接可用，于是把
+`wasm-feature-detect` 的两段探测字节内联进去，与 `tesseract.js` 内部保持一致。
+
+代价是产生了一处必须跟着 `tesseract.js` 升级而核对的耦合，已在代码与文档里标注。
+备选方案是三个全缓存，多占 8MB——对一个主打离线的应用来说，那 8MB 是纯浪费。
+
+## 最近文档存 IndexedDB，但不做云同步
+
+「不做阅读进度云同步」的约束没变。但装成主屏应用之后，点开是个空页面、每次都要回文件
+管理器里翻同一本书，是明显的倒退；离线时文件选择器能否取到云盘文件本身也没保证。
+
+存在本地既不违反那条约束，也让「随时打开接着读」成立。
+
 ## 保留 polyfill 而不要求用户升级系统
 
 iPadOS 18.4 以下缺 `ReadableStream` 异步迭代。可以要求用户升级，但旧 iPad 往往

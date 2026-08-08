@@ -6,7 +6,8 @@
 |---|---|---|---|
 | 单元测试 | `npm test` | 纯逻辑：分词、归一化、词典查询 | 无（`node --test` 内置） |
 | 端到端 | `npm run e2e` | 真实事件、渲染、对齐、OCR、兼容性 | 本机 Chrome + `npm run dev` |
-| 类型检查 | `npx tsc --noEmit` | 接口契约 | 无 |
+| 离线端到端 | `npm run e2e:pwa` | 安装、预缓存、断网后的全部功能 | 本机 Chrome（自行构建并起 preview） |
+| 类型检查 | `npm run typecheck` | 接口契约（含 `sw.js` 的 JSDoc） | 无 |
 
 e2e 用 CDP 直接驱动本机 Chrome，不需要 Playwright 之类的框架，也不下载额外的
 浏览器二进制。
@@ -26,14 +27,19 @@ e2e 用 CDP 直接驱动本机 Chrome，不需要 Playwright 之类的框架，�
 同理，扫描件的 OCR 用例之所以可信，是因为 `sample-scanned.pdf` 是
 `sample.pdf` 的位图版——同一页内容的两种形态，可以互为参照。
 
+离线用例遵守的也是这条：**不模拟断网，而是把 preview 服务器进程杀掉再确认端口不通**。
+CDP 的 `Network.emulateNetworkConditions` 只对页面 target 生效，Service Worker 在自己的
+target 里，未必受同一份限制——用它来测离线，等于让被测对象自证。服务器没了则谁也绕不过去。
+
 ## 测试样张
 
-`npm run sample` 生成两份，正文是按用例需要设计的，改动会影响 e2e：
+`npm run sample` 生成三份，正文是按用例需要设计的，改动会影响 e2e：
 
 | 文件 | 用途 |
 |---|---|
 | `public/sample.pdf` | 带文本层。含跨行连字符、行内复合词、所有格、需还原的变形 |
 | `public/sample-scanned.pdf` | 上面那份渲染成 JPEG 再封装，无文本层，用于 OCR 路径 |
+| `public/sample-pages.pdf` | 三页，正文分别是 `alpha` / `beta` / `gamma`，用于验证阅读位置 |
 
 正文里各边界情况对应的位置：
 
@@ -85,6 +91,27 @@ e2e 用 CDP 直接驱动本机 Chrome，不需要 Playwright 之类的框架，�
 
 后三条是核心防线，分别对应三类曾经真实发生的故障。
 
+## 离线端到端用例（11）
+
+`npm run e2e:pwa`。先联网装好 Service Worker 并等预缓存完成，随后**杀掉服务器**，
+再重新加载页面跑余下的用例。
+
+| 用例 | 守住什么 |
+|---|---|
+| 预缓存离线资源 | 12.7MB 全部就位，零失败 |
+| 只缓存一个 OCR 核心变体 | SIMD 探测与 tesseract.js 一致，没多存 8MB |
+| 服务器已关闭后仍能冷启动 | 外壳与导航请求确实来自缓存 |
+| 离线加载 3.7MB 词典 | 词典进了缓存，且 gzip 判定在缓存路径下依然正确 |
+| 离线列出最近文档 | IndexedDB 里两本书都在 |
+| 记住读到第几页 | 联网阶段翻到第 3 页，离线后列表仍显示第 3 页 |
+| 离线从本地库续读到原位置 | 点开直接停在 3 / 3，不是回到第 1 页 |
+| 续读的确实是第 3 页 | 以页面正文 `gamma` 为准，而不是只看页码显示 |
+| 离线取词与词形还原 | `conveys → convey`，释义来自缓存的词典 |
+| 离线 OCR 扫描件 | 引擎与语言包全部来自缓存 |
+| 离线在扫描件上取词 | OCR 合成文本层 + 词典查询在离线下贯通 |
+
+倒数第二、三条是这一轮的核心防线：它们同时证明预缓存清单没有缺口、变体探测选对了。
+
 ## 无法自动验证的部分
 
 以下只能人工在真机上确认，改动相关代码后请手动复验：
@@ -95,6 +122,12 @@ e2e 用 CDP 直接驱动本机 Chrome，不需要 Playwright 之类的框架，�
 | 移动端画布面积上限 | 桌面 Chrome 复现不了真机 GPU 限制 |
 | Android 原生长按菜单是否被压住 | 移动端浏览器特有行为 |
 | 真机 OCR 耗时 | 平板 CPU 与桌面差异大（实测 iPad 1 秒以内） |
+| iOS「添加到主屏幕」后是否全屏 | 依赖 `apple-mobile-web-app-*` 系列标签，无头环境不生效 |
+| 安装按钮与安装横幅 | `beforeinstallprompt` 在无头 Chrome 里不触发 |
+| 文件打开与分享入口 | `file_handlers` / `share_target` 需要真的把应用装到系统里 |
+| 安全区留白（刘海、home 条） | `env(safe-area-inset-*)` 只在真机全屏下有值 |
+| 弱网下预缓存中断后续传 | 需要真实的不稳定网络；本地服务器要么通要么不通 |
+| `navigator.storage.persist()` 是否获批 | 取决于系统与用户使用频度，无法在测试里构造 |
 
 ## 调试手法
 

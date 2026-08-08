@@ -2,15 +2,26 @@
 <html lang="zh">
   <head>
     <meta charset="UTF-8" />
+    <!-- viewport-fit=cover：装成 App 全屏运行时，才能用 safe-area-inset 避开刘海与home 条 -->
     <meta
       name="viewport"
-      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"
     />
     <title>Dove — PDF 英语阅读</title>
     <link
       rel="icon"
       href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><text y='14' font-size='14'>🕊️</text></svg>"
     />
+
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <meta name="theme-color" content="#ffffff" />
+    <!-- iOS 不读 manifest 的 display/icons，这几条是「添加到主屏幕」后全屏运行的唯一开关 -->
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="Dove" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+
     <link rel="stylesheet" href="/src/style.css" />
   </head>
   <body>
@@ -22,6 +33,8 @@
       <button id="prev" class="nav" disabled>‹</button>
       <span id="pager"></span>
       <button id="next" class="nav" disabled>›</button>
+      <div id="status"></div>
+      <button id="install" class="chip" hidden>安装</button>
     </header>
 
     <main id="viewer">
@@ -29,6 +42,7 @@
         <canvas id="canvas"></canvas>
         <div id="text-layer" class="textLayer"></div>
       </div>
+      <section id="recent" hidden></section>
       <p id="hint">选择一个 PDF 文件开始，长按单词查词</p>
     </main>
 

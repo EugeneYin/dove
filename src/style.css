@@ -31,7 +31,9 @@ body {
   display: flex;
   align-items: center;
   gap: 16px;
-  padding: 10px 16px;
+  /* 装成 App 后状态栏会盖在页面上，顶栏得自己让出安全区 */
+  padding: calc(10px + env(safe-area-inset-top)) calc(16px + env(safe-area-inset-right)) 10px
+    calc(16px + env(safe-area-inset-left));
   background: var(--card);
   border-bottom: 1px solid var(--border);
   position: sticky;
@@ -71,14 +73,89 @@ body {
   cursor: default;
 }
 
-.dict-status {
+#status {
   margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 12px;
   font-size: 13px;
   color: #a1a1aa;
+  /* 顶栏空间有限，进度文字不该把翻页按钮挤出去 */
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
 }
 
 .dict-status.failed {
   color: #dc2626;
+}
+
+.chip {
+  padding: 5px 12px;
+  font-size: 13px;
+  color: var(--accent);
+  background: transparent;
+  border: 1px solid var(--accent);
+  border-radius: 999px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+/* ---- 最近阅读 ---- */
+
+#recent {
+  width: min(100%, 460px);
+}
+
+#recent h2 {
+  margin: 4px 0 10px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #a1a1aa;
+}
+
+.recent-row {
+  display: flex;
+  align-items: stretch;
+  gap: 4px;
+  margin-bottom: 8px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+
+.recent-open {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 11px 14px;
+  min-width: 0;
+  font: inherit;
+  text-align: left;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+}
+
+.recent-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.recent-meta {
+  font-size: 12px;
+  color: #a1a1aa;
+}
+
+.recent-remove {
+  padding: 0 14px;
+  font-size: 17px;
+  color: #a1a1aa;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
 }
 
 #viewer {
@@ -174,7 +251,7 @@ canvas {
 #popup {
   position: fixed;
   left: 50%;
-  bottom: 20px;
+  bottom: calc(20px + env(safe-area-inset-bottom));
   transform: translateX(-50%);
   min-width: 260px;
   max-width: min(90vw, 460px);
