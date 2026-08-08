@@ -3,3 +3,5 @@ dist
 public/standard_fonts
 public/cmaps
 public/wasm
+.cache
+public/dict.json.gz

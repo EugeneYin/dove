@@ -2,6 +2,8 @@ import * as pdfjs from "pdfjs-dist";
 import workerUrl from "pdfjs-dist/build/pdf.worker.mjs?url";
 import type { PDFDocumentProxy } from "pdfjs-dist";
 import { wordAtPoint } from "./word";
+import { loadDict, lookup as lookupWord } from "./dict";
+import { canSpeak, initSpeech, speak } from "./speech";
 
 pdfjs.GlobalWorkerOptions.workerSrc = workerUrl;
 
@@ -85,6 +87,12 @@ fileInput.addEventListener("change", () => {
   if (file) void openFile(file);
 });
 
+initSpeech();
+void loadDict().catch((e) => {
+  hintEl.hidden = false;
+  hintEl.textContent = String(e.message ?? e);
+});
+
 // 开发环境自动载入样例文档，便于调试取词（生产构建会被剔除）
 if (import.meta.env.DEV) {
   fetch("/sample.pdf")
@@ -122,11 +130,37 @@ function showHighlight(rects: DOMRect[]) {
   pageEl.appendChild(hl);
 }
 
+function el(tag: string, cls: string, text?: string) {
+  const node = document.createElement(tag);
+  node.className = cls;
+  if (text !== undefined) node.textContent = text;
+  return node;
+}
+
 function lookup(word: string, rects: DOMRect[]) {
   showHighlight(rects);
+
+  const entry = lookupWord(word);
+  const head = el("div", "head");
+  head.append(el("span", "word", entry?.word ?? word));
+  if (entry?.phonetic) head.append(el("span", "phonetic", `/${entry.phonetic}/`));
+
+  if (canSpeak()) {
+    const btn = el("button", "speak", "🔊");
+    btn.addEventListener("click", () => speak(entry?.word ?? word));
+    head.append(btn);
+  }
+
+  popupEl.replaceChildren(head);
+
+  if (entry?.lemmaOf) {
+    popupEl.append(el("div", "lemma", `原型 · 页面上是 ${entry.lemmaOf}`));
+  }
+  popupEl.append(
+    entry ? el("div", "trans", entry.translation) : el("div", "empty", "词典未收录该词"),
+  );
+
   popupEl.hidden = false;
-  popupEl.innerHTML = `<div class="word"></div>`;
-  popupEl.querySelector(".word")!.textContent = word;
 }
 
 function dismiss() {
