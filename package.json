@@ -10,6 +10,8 @@
     "build": "npm run assets && npm run typecheck && vite build",
     "typecheck": "tsc -p tsconfig.json && tsc -p tsconfig.sw.json",
     "preview": "vite preview",
+    "serve": "npm run build && node scripts/serve.mjs",
+    "serve:tunnel": "npm run build && node scripts/serve.mjs --tunnel",
     "test": "node --test src/**/*.test.ts",
     "dict": "node scripts/build-dict.mjs",
     "e2e": "node scripts/e2e.mjs",
