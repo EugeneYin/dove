@@ -1,5 +1,6 @@
-import * as pdfjs from "pdfjs-dist";
-import workerUrl from "pdfjs-dist/build/pdf.worker.mjs?url";
+// 用 legacy 构建：现代构建的语法在较旧的浏览器内核上会直接解析失败
+import * as pdfjs from "pdfjs-dist/legacy/build/pdf.mjs";
+import workerUrl from "pdfjs-dist/legacy/build/pdf.worker.mjs?url";
 import type { PDFDocumentProxy } from "pdfjs-dist";
 import { wordAtPoint } from "./word";
 import { loadDict, lookup as lookupWord } from "./dict";
@@ -68,6 +69,10 @@ async function renderPage(n: number) {
     const ctx = canvas.getContext("2d");
     if (!ctx) throw new Error("无法创建 2D 画布上下文");
 
+    // 必须在绘制新页之前清空：一旦渲染中途失败或被取代，残留的旧文本层
+    // 会盖在新页画布上，长按取到的是上一页的词。
+    textLayerEl.replaceChildren();
+
     const task = page.render({
       canvas,
       canvasContext: ctx,
@@ -78,19 +83,19 @@ async function renderPage(n: number) {
     await task.promise;
     if (stale()) return;
 
-    textLayerEl.replaceChildren();
-    const textLayer = new pdfjs.TextLayer({
-      textContentSource: await page.getTextContent(),
-      container: textLayerEl,
-      viewport,
-    });
+    const textContent = await page.getTextContent();
+    if (stale()) return;
+
+    const textLayer = new pdfjs.TextLayer({ textContentSource: textContent, container: textLayerEl, viewport });
     await textLayer.render();
     if (stale()) return;
 
     pagerEl.textContent = `${n} / ${doc.numPages}`;
     $<HTMLButtonElement>("prev").disabled = n <= 1;
     $<HTMLButtonElement>("next").disabled = n >= doc.numPages;
-    showStatus(null);
+
+    // 扫描版 PDF 只有图像、没有文本层，取词无从谈起，必须说清楚而不是让用户干按
+    showStatus(textContent.items.length === 0 ? "本页是图片，没有可选的文字，无法取词。" : null);
   } catch (e) {
     if (e instanceof pdfjs.RenderingCancelledException || stale()) return;
     showStatus(`第 ${n} 页渲染失败：${(e as Error).message}`, true);
