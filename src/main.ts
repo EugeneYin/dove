@@ -88,10 +88,21 @@ fileInput.addEventListener("change", () => {
 });
 
 initSpeech();
-void loadDict().catch((e) => {
-  hintEl.hidden = false;
-  hintEl.textContent = String(e.message ?? e);
-});
+
+// 词典约 3.8MB，首次加载需要时间，期间给出反馈
+const dictStatus = el("span", "dict-status", "词典加载中…");
+$("bar").append(dictStatus);
+void loadDict().then(
+  () => {
+    dictStatus.remove();
+    document.body.dataset.dict = "ready";
+  },
+  (e: Error) => {
+    dictStatus.textContent = `词典加载失败：${e.message}`;
+    dictStatus.classList.add("failed");
+    document.body.dataset.dict = "failed";
+  },
+);
 
 // 开发环境自动载入样例文档，便于调试取词（生产构建会被剔除）
 if (import.meta.env.DEV) {
@@ -168,13 +179,21 @@ function dismiss() {
   document.getElementById("hl")?.remove();
 }
 
+function lookupAt(x: number, y: number) {
+  const hit = wordAtPoint(x, y, textLayerEl);
+  if (hit) lookup(hit.word, hit.rects);
+}
+
 textLayerEl.addEventListener("pointerdown", (e) => {
   origin = { x: e.clientX, y: e.clientY };
   clearTimer();
-  timer = window.setTimeout(() => {
-    const hit = wordAtPoint(e.clientX, e.clientY, textLayerEl);
-    if (hit) lookup(hit.word, hit.rects);
-  }, LONG_PRESS_MS);
+  timer = window.setTimeout(() => lookupAt(e.clientX, e.clientY), LONG_PRESS_MS);
+});
+
+// 桌面端用双击更顺手，触屏端长按更自然，两者都支持
+textLayerEl.addEventListener("dblclick", (e) => {
+  clearTimer();
+  lookupAt(e.clientX, e.clientY);
 });
 
 textLayerEl.addEventListener("pointermove", (e) => {

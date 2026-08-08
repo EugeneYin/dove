@@ -16,8 +16,21 @@ npm run dev
 
 ```bash
 npm test        # 单元测试（node --test，无额外依赖）
+npm run e2e     # 端到端验证取词交互，需先 npm run dev
 npm run build   # 生产构建到 dist/
+npm run sample  # 重新生成测试样张 public/sample.pdf
 ```
+
+`npm run e2e` 用 CDP 驱动本机 Chrome 无头模式，不依赖 Playwright 之类的框架。
+它覆盖的是单元测试碰不到的部分：真实的双击/长按事件、文本层与 canvas 的对齐、
+词卡内容。样张 `public/sample.pdf` 的正文是按用例需要设计的，改动它会影响 e2e。
+
+## 交互
+
+| 设备 | 取词方式 |
+|---|---|
+| 桌面（鼠标） | 双击单词，或按住 400ms |
+| 触屏（Pad） | 长按 400ms |
 
 ## 结构
 
@@ -47,7 +60,8 @@ PDF.js 在 canvas 之上铺一层透明的 `<span>` 文本层，因此取词直�
 网页端不现实，因此按「有 BNC/COCA 词频排名，或属柯林斯/牛津核心，或带考试标签」
 裁剪至 58226 词，配 43013 条变形映射，gzip 后 3.7MB。
 
-词典预压缩为 `dict.json.gz`，由客户端 `DecompressionStream` 解压，不依赖服务器
-是否开启 gzip。生成产物不入库，克隆后需自行执行 `npm run dict`。
+词典预压缩为 `dict.json.gz`。注意部分服务器（含 Vite dev）会给 `.gz` 文件加上
+`Content-Encoding: gzip`，浏览器便已透明解压；因此客户端靠 gzip 魔数判断是否需要
+自己解压，两种情况都能正确处理。生成产物不入库，克隆后需自行执行 `npm run dict`。
 
 极生僻的专业术语和部分英式拼写（如 `memorisation`）不在收词范围内。

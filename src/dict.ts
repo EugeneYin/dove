@@ -28,9 +28,15 @@ let loading: Promise<void> | null = null;
 
 async function fetchDict(): Promise<DictFile> {
   const res = await fetch("/dict.json.gz");
-  if (!res.ok || !res.body) throw new Error(`词典加载失败: HTTP ${res.status}`);
-  // 词典是预压缩的，与服务器是否开启 gzip 无关
-  const stream = res.body.pipeThrough(new DecompressionStream("gzip"));
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const bytes = new Uint8Array(await res.arrayBuffer());
+
+  // 词典文件是预压缩的，但部分服务器（含 Vite）会给 .gz 加上 Content-Encoding: gzip，
+  // 浏览器便已透明解压。靠 gzip 魔数判断，两种情况都能正确处理。
+  const gzipped = bytes[0] === 0x1f && bytes[1] === 0x8b;
+  if (!gzipped) return JSON.parse(new TextDecoder().decode(bytes)) as DictFile;
+
+  const stream = new Response(bytes).body!.pipeThrough(new DecompressionStream("gzip"));
   return new Response(stream).json() as Promise<DictFile>;
 }
 

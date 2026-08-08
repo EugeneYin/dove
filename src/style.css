@@ -71,6 +71,16 @@ body {
   cursor: default;
 }
 
+.dict-status {
+  margin-left: auto;
+  font-size: 13px;
+  color: #a1a1aa;
+}
+
+.dict-status.failed {
+  color: #dc2626;
+}
+
 #viewer {
   padding: 16px;
   display: flex;

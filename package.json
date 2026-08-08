@@ -9,7 +9,9 @@
     "build": "npm run assets && tsc && vite build",
     "preview": "vite preview",
     "test": "node --test src/**/*.test.ts",
-    "dict": "node scripts/build-dict.mjs"
+    "dict": "node scripts/build-dict.mjs",
+    "e2e": "node scripts/e2e.mjs",
+    "sample": "node scripts/make-sample.mjs"
   },
   "keywords": [],
   "author": "",
