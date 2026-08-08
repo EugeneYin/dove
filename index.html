@@ -34,6 +34,43 @@
 
     <div id="popup" hidden></div>
 
+    <!--
+      兜底诊断：模块脚本若因浏览器版本过旧而解析失败，模块内的错误处理同样不会执行，
+      页面会彻底空白且毫无提示。这段普通脚本先于模块运行，负责把原因显示出来。
+    -->
+    <script>
+      (function () {
+        var missing = [];
+        if (!window.Intl || !Intl.Segmenter) missing.push("Intl.Segmenter");
+        if (!window.DecompressionStream) missing.push("DecompressionStream");
+        if (!Object.hasOwn) missing.push("Object.hasOwn");
+        if (!window.CSS || !CSS.supports("width", "round(down, 10px, 1px)")) {
+          missing.push("CSS round()");
+        }
+
+        function report(text) {
+          var hint = document.getElementById("hint");
+          if (!hint) return;
+          hint.hidden = false;
+          hint.className = "error";
+          hint.textContent = text;
+        }
+
+        if (missing.length) {
+          report("浏览器版本过旧，缺少：" + missing.join("、") + "。请升级 Chrome 后重试。");
+        }
+        addEventListener(
+          "error",
+          function (e) {
+            report("脚本错误：" + (e.message || e.error || "未知") + "（" + (e.filename || "") + "）");
+          },
+          true,
+        );
+        addEventListener("unhandledrejection", function (e) {
+          report("未处理的异常：" + ((e.reason && e.reason.message) || e.reason));
+        });
+      })();
+    </script>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

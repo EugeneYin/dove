@@ -19,13 +19,34 @@ const hintEl = $<HTMLParagraphElement>("hint");
 
 let doc: PDFDocumentProxy | null = null;
 let pageNum = 1;
-let rendering = false;
+
+/**
+ * 移动端浏览器对画布总面积有上限，超过后 getContext 照常成功、绘制却是全空白且不报错。
+ * 这里主动限制面积，必要时降低渲染倍率——宁可略糊，也不能白屏。
+ */
+const MAX_CANVAS_PX = 16_777_216;
+
+function outputScaleFor(width: number, height: number) {
+  const dpr = window.devicePixelRatio || 1;
+  const area = width * height * dpr * dpr;
+  return area > MAX_CANVAS_PX ? dpr * Math.sqrt(MAX_CANVAS_PX / area) : dpr;
+}
+
+// 渲染串行化：后发的请求作废先前的，而不是被先前的挡掉
+let renderToken = 0;
+let currentTask: { cancel(): void } | null = null;
 
 async function renderPage(n: number) {
-  if (!doc || rendering) return;
-  rendering = true;
+  if (!doc) return;
+  const token = ++renderToken;
+  const stale = () => token !== renderToken;
+
+  currentTask?.cancel();
+  currentTask = null;
+
   try {
     const page = await doc.getPage(n);
+    if (stale()) return;
 
     // 按可视宽度缩放，Pad 上铺满
     const available = pageEl.parentElement!.clientWidth - 32;
@@ -33,9 +54,9 @@ async function renderPage(n: number) {
     const scale = available / base.width;
     const viewport = page.getViewport({ scale });
 
-    const dpr = window.devicePixelRatio || 1;
-    canvas.width = Math.floor(viewport.width * dpr);
-    canvas.height = Math.floor(viewport.height * dpr);
+    const output = outputScaleFor(viewport.width, viewport.height);
+    canvas.width = Math.floor(viewport.width * output);
+    canvas.height = Math.floor(viewport.height * output);
     canvas.style.width = `${viewport.width}px`;
     canvas.style.height = `${viewport.height}px`;
 
@@ -44,13 +65,18 @@ async function renderPage(n: number) {
     // PDF.js 6 的文本层用这个变量定位
     pageEl.style.setProperty("--total-scale-factor", String(scale));
 
-    const ctx = canvas.getContext("2d")!;
-    await page.render({
+    const ctx = canvas.getContext("2d");
+    if (!ctx) throw new Error("无法创建 2D 画布上下文");
+
+    const task = page.render({
       canvas,
       canvasContext: ctx,
       viewport,
-      transform: dpr !== 1 ? [dpr, 0, 0, dpr, 0, 0] : undefined,
-    }).promise;
+      transform: output !== 1 ? [output, 0, 0, output, 0, 0] : undefined,
+    });
+    currentTask = task;
+    await task.promise;
+    if (stale()) return;
 
     textLayerEl.replaceChildren();
     const textLayer = new pdfjs.TextLayer({
@@ -59,27 +85,41 @@ async function renderPage(n: number) {
       viewport,
     });
     await textLayer.render();
+    if (stale()) return;
 
     pagerEl.textContent = `${n} / ${doc.numPages}`;
     $<HTMLButtonElement>("prev").disabled = n <= 1;
     $<HTMLButtonElement>("next").disabled = n >= doc.numPages;
-  } finally {
-    rendering = false;
+    showStatus(null);
+  } catch (e) {
+    if (e instanceof pdfjs.RenderingCancelledException || stale()) return;
+    showStatus(`第 ${n} 页渲染失败：${(e as Error).message}`, true);
   }
 }
 
+/** 页面出问题时必须让用户看见原因，白屏且无提示是最难排查的状态 */
+function showStatus(message: string | null, isError = false) {
+  hintEl.hidden = message === null;
+  hintEl.textContent = message ?? "";
+  hintEl.classList.toggle("error", isError);
+}
+
 async function openFile(file: File) {
-  const data = await file.arrayBuffer();
-  doc = await pdfjs.getDocument({
-    data,
-    standardFontDataUrl: "/standard_fonts/",
-    cMapUrl: "/cmaps/",
-    cMapPacked: true,
-    wasmUrl: "/wasm/",
-  }).promise;
-  pageNum = 1;
-  hintEl.hidden = true;
-  await renderPage(pageNum);
+  showStatus(`正在打开 ${file.name}…`);
+  try {
+    const data = await file.arrayBuffer();
+    doc = await pdfjs.getDocument({
+      data,
+      standardFontDataUrl: "/standard_fonts/",
+      cMapUrl: "/cmaps/",
+      cMapPacked: true,
+      wasmUrl: "/wasm/",
+    }).promise;
+    pageNum = 1;
+    await renderPage(pageNum);
+  } catch (e) {
+    showStatus(`打开失败：${(e as Error).message}`, true);
+  }
 }
 
 fileInput.addEventListener("change", () => {

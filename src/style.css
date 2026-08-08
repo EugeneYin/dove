@@ -90,6 +90,12 @@ body {
 #hint {
   color: #a1a1aa;
   font-size: 14px;
+  text-align: center;
+  padding: 0 16px;
+}
+
+#hint.error {
+  color: #dc2626;
 }
 
 #page {
