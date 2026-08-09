@@ -82,7 +82,47 @@ sw.addEventListener("message", (event) => {
   // 页面上点了「刷新」才切到新版本：中途换版本会让已加载的页面去取不存在的旧分块
   if (data?.type === "skip-waiting") void sw.skipWaiting();
   if (data?.type === "prefetch") event.waitUntil(prefetch());
+  // 诊断面板问缓存明细。回信走请求方给的端口，免得广播给无关页面
+  if (data?.type === "diag" && event.ports[0]) event.waitUntil(describe(event.ports[0]));
 });
+
+/**
+ * 缓存到底缺了什么。
+ *
+ * 「装上了但某个功能时好时坏」几乎都是某个文件没进缓存，而进度条只报了个
+ * 失败计数，看不出缺的是词典还是 OCR 语言包。这里把清单原样交出去。
+ *
+ * @param {MessagePort} port
+ */
+async function describe(port) {
+  const core = tesseractCore();
+  const wanted = __EXTRAS__.filter(([url]) => !url.startsWith(CORE_PREFIX) || url === core);
+  const cache = await caches.open(CACHE);
+
+  let cachedBytes = 0;
+  let totalBytes = 0;
+  const missing = [];
+  for (const [url, bytes] of wanted) {
+    totalBytes += bytes;
+    if (await cache.match(url, { ignoreVary: true })) cachedBytes += bytes;
+    else missing.push(url);
+  }
+
+  const shellMissing = [];
+  for (const url of __SHELL__) {
+    if (!(await cache.match(url, { ignoreVary: true }))) shellMissing.push(url);
+  }
+
+  port.postMessage({
+    cache: CACHE,
+    core,
+    cachedBytes,
+    totalBytes,
+    missing,
+    shellMissing,
+    caches: await caches.keys(),
+  });
+}
 
 // ---------------- 预缓存 ----------------
 
@@ -92,6 +132,7 @@ sw.addEventListener("message", (event) => {
  * @property {number} done   已就绪字节数
  * @property {number} total
  * @property {number} failed
+ * @property {string[]} failures 失败的 URL 及原因，供诊断面板显示
  * @property {boolean} finished
  */
 
@@ -121,7 +162,8 @@ async function fill() {
 
   const cache = await caches.open(CACHE);
   let done = 0;
-  let failed = 0;
+  /** @type {string[]} */
+  const failures = [];
 
   for (const [url, bytes] of wanted) {
     // 已缓存的直接跳过，这正是中断后能续传的原因
@@ -134,13 +176,20 @@ async function fill() {
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       await cache.put(url, res);
       done += bytes;
-    } catch {
-      failed++;
+    } catch (e) {
+      failures.push(`${url} — ${e instanceof Error ? e.message : String(e)}`);
     }
-    await post({ type: "prefetch", done, total, failed, finished: false });
+    await post({
+      type: "prefetch",
+      done,
+      total,
+      failed: failures.length,
+      failures,
+      finished: false,
+    });
   }
 
-  await post({ type: "prefetch", done, total, failed, finished: true });
+  await post({ type: "prefetch", done, total, failed: failures.length, failures, finished: true });
 }
 
 // ---------------- 请求拦截 ----------------

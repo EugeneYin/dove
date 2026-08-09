@@ -4,10 +4,11 @@ import "./polyfills";
 import * as pdfjs from "pdfjs-dist/legacy/build/pdf.mjs";
 import type { PDFDocumentProxy } from "pdfjs-dist";
 import { wordAtPoint } from "./word";
-import { loadDict, lookup as lookupWord } from "./dict";
+import { dictInfo, loadDict, lookup as lookupWord } from "./dict";
 import { canSpeak, initSpeech, speak, voiceName } from "./speech";
 import { buildTextLayer, recognize, type OcrWord } from "./ocr";
 import { forgetDoc, recentDocs, rememberDoc, rememberPage } from "./library";
+import { initDiag, log, setAppProbe } from "./diag";
 
 // 自己创建 worker，好让 polyfill 先于 pdfjs worker 执行
 pdfjs.GlobalWorkerOptions.workerPort = new Worker(new URL("./pdf-worker.ts", import.meta.url), {
@@ -52,6 +53,7 @@ async function renderPage(n: number) {
   if (!doc) return;
   const token = ++renderToken;
   const stale = () => token !== renderToken;
+  const began = performance.now();
 
   currentTask?.cancel();
   currentTask = null;
@@ -97,6 +99,11 @@ async function renderPage(n: number) {
     const textContent = await page.getTextContent();
     if (stale()) return;
 
+    log(
+      `渲染第 ${n} 页 ${Math.round(performance.now() - began)}ms · 画布 ${canvas.width}×${canvas.height}` +
+        ` @${output.toFixed(2)} · 文本 ${textContent.items.length} 段`,
+    );
+
     pagerEl.textContent = `${n} / ${doc.numPages}`;
     $<HTMLButtonElement>("prev").disabled = n <= 1;
     $<HTMLButtonElement>("next").disabled = n >= doc.numPages;
@@ -135,11 +142,13 @@ async function runOcr(n: number, cssWidth: number, stale: () => boolean) {
 
   try {
     const canvasWidth = canvas.width;
+    const began = performance.now();
     const words = await recognize(canvas, (msg) => {
       if (!stale()) showStatus(msg);
     });
     if (stale()) return;
 
+    log(`识别第 ${n} 页 ${Math.round(performance.now() - began)}ms · ${words.length} 个词`);
     ocrCache.set(n, { words, canvasWidth });
     show(words, canvasWidth);
   } catch (e) {
@@ -150,12 +159,15 @@ async function runOcr(n: number, cssWidth: number, stale: () => boolean) {
 
 /** 页面出问题时必须让用户看见原因，白屏且无提示是最难排查的状态 */
 function showStatus(message: string | null, isError = false) {
+  // 用户看到的错误同时进日志：他截图给你的那一句，在日志里能找到上下文
+  if (isError && message) console.error(message);
   hintEl.hidden = message === null;
   hintEl.textContent = message ?? "";
   hintEl.classList.toggle("error", isError);
 }
 
 async function openFile(file: File) {
+  log(`打开 ${file.name} · ${size(file.size)}`);
   showStatus(`正在打开 ${file.name}…`);
   // 解析新文档要花时间，期间旧文本层若还留着，长按会取到上一个文档的词
   textLayerEl.replaceChildren();
@@ -173,6 +185,7 @@ async function openFile(file: File) {
     docId = remembered.id;
     // 续读上次的位置。文件可能被换过，页码得夹到实际范围内
     pageNum = Math.min(Math.max(remembered.page, 1), doc.numPages);
+    log(`文档就绪 · ${doc.numPages} 页，从第 ${pageNum} 页开始`);
     ocrCache.clear();
     await renderPage(pageNum);
   } catch (e) {
@@ -225,8 +238,13 @@ initSpeech();
 // 词典约 3.8MB，首次加载需要时间，期间给出反馈
 const dictStatus = el("span", "dict-status", "词典加载中…");
 statusEl.append(dictStatus);
+const dictBegan = performance.now();
 void loadDict().then(
   () => {
+    const info = dictInfo();
+    log(
+      `词典就绪 ${Math.round(performance.now() - dictBegan)}ms · ${info?.words ?? 0} 词条 / ${info?.lemmas ?? 0} 变形`,
+    );
     dictStatus.remove();
     document.body.dataset.dict = "ready";
   },
@@ -365,6 +383,7 @@ async function registerWorker() {
 
     // install 只拉了外壳，剩下十几 MB 的词典、字体与 OCR 引擎由页面在这里点火
     const ready = await navigator.serviceWorker.ready;
+    log(`Service Worker 就绪 · scope ${registration.scope}`);
     ready.active?.postMessage({ type: "prefetch" });
 
     registration.addEventListener("updatefound", () => {
@@ -384,7 +403,14 @@ const offlineStatus = el("span", "dict-status");
 statusEl.append(offlineStatus);
 
 function onWorkerMessage(data: unknown) {
-  const msg = data as { type?: string; done: number; total: number; failed: number; finished: boolean };
+  const msg = data as {
+    type?: string;
+    done: number;
+    total: number;
+    failed: number;
+    failures: string[];
+    finished: boolean;
+  };
   if (msg?.type !== "prefetch") return;
 
   if (!msg.finished) {
@@ -393,8 +419,11 @@ function onWorkerMessage(data: unknown) {
   }
   if (msg.failed) {
     offlineStatus.textContent = `离线资源缺 ${msg.failed} 项，下次启动继续`;
+    // 缺了什么必须留档：这些文件是离线时功能时好时坏的直接原因
+    console.warn(`预缓存缺 ${msg.failed} 项：${msg.failures.join("；")}`);
     return;
   }
+  log(`离线资源齐全 ${size(msg.total)}`);
   offlineStatus.textContent = "已可离线使用";
   setTimeout(() => (offlineStatus.textContent = ""), 4000);
 }
@@ -541,6 +570,23 @@ $<HTMLButtonElement>("next").addEventListener("click", () => go(1));
 document.addEventListener("keydown", (e) => {
   if (e.key === "ArrowRight") go(1);
   if (e.key === "ArrowLeft") go(-1);
+});
+
+// ---------------- 诊断 ----------------
+
+initDiag();
+
+setAppProbe(async () => {
+  const info = dictInfo();
+  const all = await recentDocs();
+  return {
+    词典: info
+      ? `${info.words} 词条 / ${info.lemmas} 变形`
+      : `未就绪（${document.body.dataset.dict ?? "加载中"}）`,
+    当前文档: doc ? `第 ${pageNum} / ${doc.numPages} 页 · OCR 缓存 ${ocrCache.size} 页` : "未打开",
+    最近阅读: `${all.length} 本 · ${size(all.reduce((sum, r) => sum + r.size, 0))}`,
+    发音音色: voiceName() ?? "无",
+  };
 });
 
 if (import.meta.env.PROD && "serviceWorker" in navigator) void registerWorker();
