@@ -1,0 +1,77 @@
+{
+  "schemaVersion": 1,
+  "baselineAppVersion": "2.1.0",
+  "suite": {
+    "id": "pwa-offline",
+    "runner": "playwright",
+    "testFile": "e2e/pwa.spec.ts",
+    "cases": [
+      {
+        "id": "PWA-001",
+        "name": "预缓存离线资源",
+        "introducedIn": "2.0.0",
+        "protects": "Service Worker 能完整缓存应用外壳、词典、PDF 与 OCR 资源"
+      },
+      {
+        "id": "PWA-002",
+        "name": "只缓存一个 OCR 核心变体",
+        "introducedIn": "2.0.0",
+        "protects": "WASM 能力探测与 Tesseract 选择一致，避免多缓存约 8MB"
+      },
+      {
+        "id": "PWA-003",
+        "name": "服务器关闭后仍能冷启动",
+        "introducedIn": "2.0.0",
+        "protects": "导航和应用外壳真正由 Service Worker 缓存提供"
+      },
+      {
+        "id": "PWA-004",
+        "name": "离线加载词典",
+        "introducedIn": "2.0.0",
+        "protects": "压缩词典在离线缓存路径中仍能解压并加载"
+      },
+      {
+        "id": "PWA-005",
+        "name": "离线列出最近文档",
+        "introducedIn": "2.0.0",
+        "protects": "IndexedDB 中的最近阅读记录可在离线启动后恢复"
+      },
+      {
+        "id": "PWA-006",
+        "name": "记住阅读页码",
+        "introducedIn": "2.0.0",
+        "protects": "多页 PDF 的最后阅读位置正确持久化"
+      },
+      {
+        "id": "PWA-007",
+        "name": "离线续读到原位置",
+        "introducedIn": "2.0.0",
+        "protects": "从 IndexedDB 打开文档时恢复到保存页码"
+      },
+      {
+        "id": "PWA-008",
+        "name": "续读内容与页码一致",
+        "introducedIn": "2.0.0",
+        "protects": "不只验证页码文本，也以 PDF 实际内容作为外部基准"
+      },
+      {
+        "id": "PWA-009",
+        "name": "离线取词与词形还原",
+        "introducedIn": "2.0.0",
+        "protects": "PDF 渲染、手势取词、词形还原和离线词典完整贯通"
+      },
+      {
+        "id": "PWA-010",
+        "name": "离线 OCR 扫描件",
+        "introducedIn": "2.0.0",
+        "protects": "OCR 引擎、WASM 与语言包能完全从缓存运行"
+      },
+      {
+        "id": "PWA-011",
+        "name": "离线在扫描件上取词",
+        "introducedIn": "2.0.0",
+        "protects": "OCR 合成文本层与取词查询链路在离线状态下贯通"
+      }
+    ]
+  }
+}

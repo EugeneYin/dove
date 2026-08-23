@@ -6,11 +6,12 @@
 |---|---|---|---|
 | 单元测试 | `npm test` | 纯逻辑：分词、归一化、词典查询 | 无（`node --test` 内置） |
 | 端到端 | `npm run e2e` | 真实事件、渲染、对齐、OCR、兼容性 | 本机 Chrome + `npm run dev` |
-| 离线端到端 | `npm run e2e:pwa` | 安装、预缓存、断网后的全部功能 | 本机 Chrome（自行构建并起 preview） |
+| 离线端到端 | `pnpm run e2e:pwa` | 安装、预缓存、关闭服务器后的全部功能 | Playwright Chromium（自行构建并起 preview） |
 | 类型检查 | `npm run typecheck` | 接口契约（含 `sw.js` 的 JSDoc） | 无 |
 
-e2e 用 CDP 直接驱动本机 Chrome，不需要 Playwright 之类的框架，也不下载额外的
-浏览器二进制。
+普通 e2e 仍用 CDP 直接驱动本机 Chrome；PWA 离线套件已迁入 Playwright，以便在
+GitHub Actions 自动运行、生成版本化报告并保存失败 Trace。旧离线 CDP 脚本保留为
+`pnpm run e2e:pwa:legacy`。环境细节见 [PWA E2E Playbook](pwa-e2e-playbook.md)。
 
 ## 一条必须遵守的原则
 
@@ -95,7 +96,7 @@ target 里，未必受同一份限制——用它来测离线，等于让被测�
 
 ## 离线端到端用例（11）
 
-`npm run e2e:pwa`。先联网装好 Service Worker 并等预缓存完成，随后**杀掉服务器**，
+`pnpm run e2e:pwa`。先联网装好 Service Worker 并等预缓存完成，随后**关闭服务器**，
 再重新加载页面跑余下的用例。
 
 | 用例 | 守住什么 |

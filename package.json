@@ -15,7 +15,11 @@
     "test": "node --test src/**/*.test.ts",
     "dict": "node scripts/build-dict.mjs",
     "e2e": "node scripts/e2e.mjs",
-    "e2e:pwa": "node scripts/e2e-pwa.mjs",
+    "e2e:pwa": "pnpm run build && playwright test --project=pwa-chromium",
+    "e2e:pwa:legacy": "node scripts/e2e-pwa.mjs",
+    "e2e:pwa:report": "playwright show-report",
+    "e2e:catalog": "node scripts/check-e2e-catalog.mjs",
+    "test:ci": "pnpm test && pnpm run e2e:catalog && pnpm run e2e:pwa",
     "sample": "node scripts/make-sample.mjs"
   },
   "keywords": [],
@@ -24,6 +28,7 @@
   "packageManager": "pnpm@10.33.0",
   "devDependencies": {
     "@napi-rs/canvas": "^1.0.3",
+    "@playwright/test": "^1.62.1",
     "@types/node": "^26.2.0",
     "typescript": "^7.0.2",
     "vite": "^8.2.1"

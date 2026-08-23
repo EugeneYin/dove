@@ -131,7 +131,8 @@ npm run dev
 ```bash
 npm test         # 单元测试（node --test，无额外依赖）
 npm run e2e      # 端到端测试，需先 npm run dev
-npm run e2e:pwa  # 离线端到端测试，自行构建并起 preview
+pnpm run e2e:pwa # Playwright PWA 离线端到端，自行构建、关闭 preview 并生成报告
+pnpm run test:ci # 与 GitHub Actions 相同的完整检查
 npm run build    # 生产构建到 dist/
 npm run sample   # 重新生成测试样张
 ```
@@ -191,6 +192,7 @@ iOS / iPadOS 没有对应接口，只能在 Safari 里「分享 → 添加到主
 | [docs/decisions.md](docs/decisions.md) | 技术选型及其理由，含被否决的方案 |
 | [docs/pitfalls.md](docs/pitfalls.md) | 已踩过的坑与根因，改动前务必一读 |
 | [docs/testing.md](docs/testing.md) | 测试策略与全部用例清单 |
+| [docs/pwa-e2e-playbook.md](docs/pwa-e2e-playbook.md) | Playwright PWA E2E 环境、版本回溯与新增用例流程 |
 
 ## 技术栈
 

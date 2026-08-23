@@ -8,3 +8,5 @@ public/dict.json.gz
 public/tesseract
 public/icons
 eng.traineddata
+playwright-report
+test-results

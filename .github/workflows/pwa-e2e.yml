@@ -1,0 +1,66 @@
+name: PWA E2E
+
+on:
+  pull_request:
+  push:
+    branches: [master, main]
+  workflow_dispatch:
+
+concurrency:
+  group: pwa-e2e-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: PWA regression baseline
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.33.0
+          run_install: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Playwright Chromium
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Read application version
+        id: version
+        run: echo "app_version=$(node -p "require('./package.json').version")" >> "$GITHUB_OUTPUT"
+
+      - name: Run unit, catalog, build and PWA E2E tests
+        run: pnpm run test:ci
+
+      - name: Write run summary
+        if: always()
+        run: |
+          echo "### Dove PWA E2E" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Application: v${{ steps.version.outputs.app_version }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Commit: ${{ github.sha }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Test catalog: e2e/test-cases.json" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Archive versioned E2E evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dove-pwa-e2e-v${{ steps.version.outputs.app_version }}-${{ github.sha }}
+          path: |
+            playwright-report/
+            test-results/
+            e2e/test-cases.json
+          if-no-files-found: warn
+          retention-days: 90
