@@ -28,6 +28,7 @@ Dove 只解决一件事：**让「读到生词」和「查到词义」之间的�
 - **跨行断词还原** — 行尾 `under-` 与次行 `standing` 合并为 `understanding`
 - **可安装、全离线**（v2.0）— 装到主屏后连词典与 OCR 引擎一起离线可用
 - **最近阅读**（v2.0）— 读过的书存在本地，点开即续读到上次的页码
+- **自诊断**（v2.1）— 真机上点顶栏的「诊断」即可看到环境、能力自检、离线缓存明细与日志
 
 ## v2.0：装到主屏，彻底离线
 
@@ -48,6 +49,28 @@ Dove 只解决一件事：**让「读到生词」和「查到词义」之间的�
 
 > OCR 核心有 SIMD / relaxed-SIMD / 基础三个变体各约 4MB，运行时只会用其中一个。
 > Service Worker 自己做 WebAssembly 特性探测，只缓存会被选中的那一个。
+
+## v2.1：真机上的自诊断
+
+平板和手机上没有 devtools：连不上电脑、看不到 console、复现不了就问不出原因。
+顶栏的**诊断**按钮打开一个整屏面板，四节内容：
+
+| 一节 | 回答的问题 |
+|---|---|
+| 环境 | 版本、UA、是否已安装、视口与 DPR、在线与否、是不是安全上下文 |
+| 能力自检 | 切词、词典解压、caret 取词、文本层对齐、SW、IndexedDB、WebAssembly、语音，逐项 ✓/✗ |
+| 运行时 | SW 状态、缓存版本、**离线资源缺了哪几个文件**、存储占用、词典条数、当前页、画布上有没有墨迹 |
+| 日志 | 本次会话 + **上一次会话**的日志，含第三方库的告警与未捕获异常 |
+
+点「复制」得到一份纯文本报告，直接发给开发者即可。另有「重置缓存」——
+卡在某个坏掉的缓存版本上时的逃生口，它清掉离线缓存并注销 SW，不动最近阅读的书。
+
+两个设计要点：
+
+- **日志从内联脚本开始收**，不等模块加载。模块因浏览器过旧而解析失败时页面会彻底空白，
+  那正是最需要日志的时刻；此时点「诊断」仍会把日志倒在页面上。
+- **日志跨会话保留**（localStorage，400 条上限）。崩溃或自动刷新之后，内存里的日志
+  已经没了，面板顶部那份「上次会话」才是现场。
 
 ## 架构
 
@@ -108,13 +131,17 @@ npm run dev
 ```bash
 npm test         # 单元测试（node --test，无额外依赖）
 npm run e2e      # 端到端测试，需先 npm run dev
-npm run e2e:pwa  # 离线端到端测试，自行构建并起 preview
+pnpm run e2e:pwa # Playwright PWA 离线端到端，自行构建、关闭 preview 并生成报告
+pnpm run e2e:devices # PC / iPhone / iPad / Android Pad 的本地设备模拟矩阵
+pnpm run test:ci # 与 GitHub Actions 相同的完整检查
 npm run build    # 生产构建到 dist/
 npm run sample   # 重新生成测试样张
 ```
 
 Service Worker 只在生产构建中启用，`npm run dev` 下不注册——否则改一行代码就要跟缓存
 搏斗。要验证离线行为请用 `npm run e2e:pwa` 或 `npm run build && npm run preview`。
+Cloudflare Pages + BrowserStack 真机环境的配置、运行命令与限制见
+[PWA E2E Playbook](docs/pwa-e2e-playbook.md)。
 
 ### 在手机 / Pad 上装起来
 
@@ -168,6 +195,9 @@ iOS / iPadOS 没有对应接口，只能在 Safari 里「分享 → 添加到主
 | [docs/decisions.md](docs/decisions.md) | 技术选型及其理由，含被否决的方案 |
 | [docs/pitfalls.md](docs/pitfalls.md) | 已踩过的坑与根因，改动前务必一读 |
 | [docs/testing.md](docs/testing.md) | 测试策略与全部用例清单 |
+| [docs/pwa-e2e-playbook.md](docs/pwa-e2e-playbook.md) | Playwright PWA E2E 环境、版本回溯与新增用例流程 |
+| [qa.md](qa.md) | 独立 QA Agent 的回归流程、证据标准与报告模板 |
+| [ops.md](ops.md) | 独立 Ops Agent 的环境启用、排障、维护与事故模板 |
 
 ## 技术栈
 

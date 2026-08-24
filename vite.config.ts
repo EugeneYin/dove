@@ -100,7 +100,11 @@ function serviceWorker(): Plugin {
   };
 }
 
+const { version } = JSON.parse(readFileSync("package.json", "utf8")) as { version: string };
+
 export default defineConfig({
+  // 诊断面板要报版本号，用户报告问题时才知道他跑的是哪一版
+  define: { __APP_VERSION__: JSON.stringify(version) },
   // 绑定所有网卡，便于用局域网 IP 在 Android Pad 真机上调试
   server: { host: true },
   preview: {

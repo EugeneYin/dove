@@ -350,6 +350,45 @@ async function checkOldWebKit() {
 
 await checkOldWebKit();
 
+// ---- 诊断面板 ----
+// 它是真机上唯一的排查入口，自己坏掉等于没有。验证能打开、内容采齐、日志有内容。
+async function checkDiag() {
+  const label = "诊断面板";
+  await evaluate(() => document.getElementById("diag").click());
+  await sleep(1500);
+
+  const state = await evaluate(() => {
+    const panel = document.querySelector(".diag-panel");
+    if (!panel) return null;
+    const rows = [...panel.querySelectorAll(".diag-row")];
+    const valueOf = (name) =>
+      rows
+        .find((r) => r.querySelector(".diag-label").textContent === name)
+        ?.querySelector(".diag-value").textContent ?? null;
+    return {
+      rows: rows.length,
+      lines: panel.querySelectorAll(".diag-line").length,
+      failed: [
+        ...panel.querySelectorAll(".diag-section:nth-of-type(2) .diag-row.bad .diag-label"),
+      ].map((n) => n.textContent),
+      dict: valueOf("词典"),
+      version: valueOf("版本"),
+    };
+  });
+
+  if (!state) return results.push({ label, ok: false, detail: "面板没有出现" });
+  results.push({
+    label,
+    ok:
+      state.rows > 15 && state.lines > 0 && !!state.dict?.includes("词条") && !state.failed.length,
+    detail: `v${state.version} · ${state.rows} 行 / ${state.lines} 条日志 · 词典 ${state.dict}${
+      state.failed.length ? ` · 自检未过：${state.failed.join("、")}` : ""
+    }`,
+  });
+}
+
+await checkDiag();
+
 console.log();
 let failed = 0;
 for (const r of results) {

@@ -6,11 +6,15 @@
 |---|---|---|---|
 | 单元测试 | `npm test` | 纯逻辑：分词、归一化、词典查询 | 无（`node --test` 内置） |
 | 端到端 | `npm run e2e` | 真实事件、渲染、对齐、OCR、兼容性 | 本机 Chrome + `npm run dev` |
-| 离线端到端 | `npm run e2e:pwa` | 安装、预缓存、断网后的全部功能 | 本机 Chrome（自行构建并起 preview） |
+| 离线端到端 | `pnpm run e2e:pwa` | 安装、预缓存、关闭服务器后的全部功能 | Playwright Chromium（自行构建并起 preview） |
+| 设备模拟 | `pnpm run e2e:devices` | PC / iPhone / iPad / Android Pad 的布局、手势和在线 smoke | Playwright Chromium + WebKit |
+| 云端真机 | `pnpm run e2e:browserstack` | iPhone / iPad / Android Pad 的真实浏览器与断网重载 | Cloudflare HTTPS URL + BrowserStack 凭据 |
 | 类型检查 | `npm run typecheck` | 接口契约（含 `sw.js` 的 JSDoc） | 无 |
 
-e2e 用 CDP 直接驱动本机 Chrome，不需要 Playwright 之类的框架，也不下载额外的
-浏览器二进制。
+普通 e2e 仍用 CDP 直接驱动本机 Chrome；PWA 离线套件已迁入 Playwright，以便在
+GitHub Actions 自动运行、生成版本化报告并保存失败 Trace。旧离线 CDP 脚本保留为
+`pnpm run e2e:pwa:legacy`。设备模拟不能替代真机；云端真机任务的启用条件、凭据和局限见
+[PWA E2E Playbook](pwa-e2e-playbook.md)。
 
 ## 一条必须遵守的原则
 
@@ -72,7 +76,7 @@ target 里，未必受同一份限制——用它来测离线，等于让被测�
 | **不会命中 `Object.prototype` 上的属性** | `constructor` 返回真实词条；`toString` / `hasOwnProperty` / `__proto__` 返回未收录 |
 | 未收录返回 null | — |
 
-## 端到端用例（12）
+## 端到端用例（13）
 
 | 用例 | 守住什么 |
 |---|---|
@@ -88,12 +92,14 @@ target 里，未必受同一份限制——用它来测离线，等于让被测�
 | **文本层与画布对齐** | 以画布墨迹为基准，行宽偏差 < 3% |
 | **扫描件 OCR 取词** | 无文本层的页面能识别并取词查出释义 |
 | **旧 WebKit 兼容** | 抹掉原生 `ReadableStream` 异步迭代后仍能渲染 |
+| 诊断面板 | 点「诊断」能打开，环境与运行时采齐、能力自检全过、日志非空 |
 
-后三条是核心防线，分别对应三类曾经真实发生的故障。
+中间三条（对齐、OCR、旧 WebKit）是核心防线，分别对应三类曾经真实发生的故障。
+最后一条守的是排查手段本身：诊断面板坏掉时真机上就再也拿不到现场了。
 
-## 离线端到端用例（11）
+## 离线端到端用例（12）
 
-`npm run e2e:pwa`。先联网装好 Service Worker 并等预缓存完成，随后**杀掉服务器**，
+`pnpm run e2e:pwa`。先联网装好 Service Worker 并等预缓存完成，随后**关闭服务器**，
 再重新加载页面跑余下的用例。
 
 | 用例 | 守住什么 |
@@ -109,10 +115,11 @@ target 里，未必受同一份限制——用它来测离线，等于让被测�
 | 离线取词与词形还原 | `conveys → convey`，释义来自缓存的词典 |
 | 离线 OCR 扫描件 | 引擎与语言包全部来自缓存 |
 | 离线在扫描件上取词 | OCR 合成文本层 + 词典查询在离线下贯通 |
+| 离线打开 v2.1 诊断面板 | 源站不可访问时仍能取得版本、能力和运行时现场 |
 
 倒数第二、三条是这一轮的核心防线：它们同时证明预缓存清单没有缺口、变体探测选对了。
 
-## 无法自动验证的部分
+## 无法由当前 E2E 可靠验证的部分
 
 以下只能人工在真机上确认，改动相关代码后请手动复验：
 
@@ -130,6 +137,11 @@ target 里，未必受同一份限制——用它来测离线，等于让被测�
 | `navigator.storage.persist()` 是否获批 | 取决于系统与用户使用频度，无法在测试里构造 |
 
 ## 调试手法
+
+真机（iPad / iPhone / Android Pad）上没有 devtools，第一步一律是**让用户点顶栏的
+「诊断」再点「复制」**，把那份报告发过来：里面有版本、能力自检、离线缓存缺了哪些文件、
+画布上有没有墨迹，以及本次与上一次会话的日志。上面那张「无法自动验证」的表里，
+多数项目都靠这份报告来判断。
 
 排查渲染或对齐问题时，直接读画布像素是最可靠的手段：
 

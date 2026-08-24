@@ -35,6 +35,7 @@
       <button id="next" class="nav" disabled>›</button>
       <div id="status"></div>
       <button id="install" class="chip" hidden>安装</button>
+      <button id="diag" class="chip" title="自诊断与日志">诊断</button>
     </header>
 
     <main id="viewer">
@@ -51,15 +52,75 @@
     <!--
       兜底诊断：模块脚本若因浏览器版本过旧而解析失败，模块内的错误处理同样不会执行，
       页面会彻底空白且毫无提示。这段普通脚本先于模块运行，负责把原因显示出来。
+
+      它同时是日志的落点。日志必须在这里开始收集而不是在 src/diag.ts 里：
+      模块没跑起来的那些故障，恰恰是最需要日志的时候。语法保持 ES5，理由同上。
     -->
     <script>
       (function () {
-        var missing = [];
-        if (!window.Intl || !Intl.Segmenter) missing.push("Intl.Segmenter");
-        if (!window.DecompressionStream) missing.push("DecompressionStream");
-        if (!Object.hasOwn) missing.push("Object.hasOwn");
-        if (!window.CSS || !CSS.supports("width", "round(down, 10px, 1px)")) {
-          missing.push("CSS round()");
+        var LIMIT = 400;
+        var KEY = "dove.log";
+
+        // 上一次会话的日志。崩溃或自动刷新之后，现场只剩这一份。
+        var prev = [];
+        try {
+          prev = JSON.parse(localStorage.getItem(KEY) || "[]");
+        } catch (e) {
+          prev = [];
+        }
+
+        var store = {
+          logs: [],
+          prev: prev,
+          push: push,
+          // src/diag.ts 加载后会替换成真正的面板；在那之前用下面的兜底渲染
+          open: fallback,
+        };
+        window.__dove = store;
+
+        var saving = false;
+        function flush() {
+          saving = false;
+          try {
+            localStorage.setItem(KEY, JSON.stringify(store.logs));
+          } catch (e) {
+            // 隐私模式或配额满，日志留在内存里就够用了
+          }
+        }
+
+        function push(level, message) {
+          store.logs.push({ t: Date.now(), l: level, m: String(message).slice(0, 600) });
+          if (store.logs.length > LIMIT) store.logs.splice(0, store.logs.length - LIMIT);
+
+          // 出错的那一条立刻落盘：紧接着页面就可能崩掉或被系统回收，
+          // 而那正是最需要留下的一条。其余的攒一下再写，免得刷屏时写爆主线程。
+          if (level === "error") return flush();
+          if (saving) return;
+          saving = true;
+          setTimeout(flush, 500);
+        }
+
+        // console.warn / console.error 是现成的日志入口，接管它们就不必改调用方，
+        // 也能收到 pdfjs、tesseract 等第三方库自己打的告警。
+        ["warn", "error"].forEach(function (level) {
+          var original = console[level];
+          console[level] = function () {
+            var parts = [];
+            for (var i = 0; i < arguments.length; i++) {
+              var a = arguments[i];
+              parts.push(a instanceof Error ? a.message : typeof a === "string" ? a : safe(a));
+            }
+            push(level, parts.join(" "));
+            original.apply(console, arguments);
+          };
+        });
+
+        function safe(value) {
+          try {
+            return JSON.stringify(value);
+          } catch (e) {
+            return String(value);
+          }
         }
 
         function report(text) {
@@ -70,18 +131,68 @@
           hint.textContent = text;
         }
 
+        var missing = [];
+        if (!window.Intl || !Intl.Segmenter) missing.push("Intl.Segmenter");
+        if (!window.DecompressionStream) missing.push("DecompressionStream");
+        if (!Object.hasOwn) missing.push("Object.hasOwn");
+        if (!window.CSS || !CSS.supports("width", "round(down, 10px, 1px)")) {
+          missing.push("CSS round()");
+        }
+
         if (missing.length) {
           report("浏览器版本过旧，缺少：" + missing.join("、") + "。请升级 Chrome 后重试。");
+          push("error", "缺少浏览器能力：" + missing.join("、"));
         }
+
         addEventListener(
           "error",
           function (e) {
-            report("脚本错误：" + (e.message || e.error || "未知") + "（" + (e.filename || "") + "）");
+            // 图片、脚本等子资源加载失败时没有 message，只有出错的元素
+            var target = e.target;
+            if (target && target !== window && target.tagName) {
+              push("error", "资源加载失败：" + (target.src || target.href || target.tagName));
+              return;
+            }
+            var text =
+              "脚本错误：" +
+              (e.message || e.error || "未知") +
+              "（" +
+              (e.filename || "") +
+              ":" +
+              (e.lineno || 0) +
+              "）";
+            push("error", text);
+            report(text);
           },
           true,
         );
+
         addEventListener("unhandledrejection", function (e) {
+          var reason = (e.reason && (e.reason.stack || e.reason.message)) || e.reason;
+          push("error", "未处理的异常：" + reason);
           report("未处理的异常：" + ((e.reason && e.reason.message) || e.reason));
+        });
+
+        push("info", "页面加载 " + location.href);
+
+        /** 模块没能跑起来时的最小可读版本：直接把日志倒在页面上 */
+        function fallback() {
+          var pre = document.createElement("pre");
+          pre.id = "diag-fallback";
+          pre.textContent = store.prev
+            .concat(store.logs)
+            .map(function (e) {
+              return new Date(e.t).toISOString().slice(11, 23) + " [" + e.l + "] " + e.m;
+            })
+            .join("\n");
+          pre.addEventListener("click", function () {
+            pre.remove();
+          });
+          document.body.appendChild(pre);
+        }
+
+        document.getElementById("diag").addEventListener("click", function () {
+          store.open();
         });
       })();
     </script>

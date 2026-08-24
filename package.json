@@ -1,6 +1,6 @@
 {
   "name": "dove",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "description": "",
   "main": "index.js",
   "scripts": {
@@ -8,14 +8,20 @@
     "icons": "node scripts/make-icons.mjs",
     "dev": "npm run assets && vite",
     "build": "npm run assets && npm run typecheck && vite build",
-    "typecheck": "tsc -p tsconfig.json && tsc -p tsconfig.sw.json",
+    "typecheck": "tsc -p tsconfig.json && tsc -p tsconfig.sw.json && tsc -p tsconfig.e2e.json",
     "preview": "vite preview",
     "serve": "npm run build && node scripts/serve.mjs",
     "serve:tunnel": "npm run build && node scripts/serve.mjs --tunnel",
     "test": "node --test src/**/*.test.ts",
     "dict": "node scripts/build-dict.mjs",
     "e2e": "node scripts/e2e.mjs",
-    "e2e:pwa": "node scripts/e2e-pwa.mjs",
+    "e2e:pwa": "pnpm run build && playwright test --project=pwa-chromium",
+    "e2e:pwa:legacy": "node scripts/e2e-pwa.mjs",
+    "e2e:pwa:report": "playwright show-report",
+    "e2e:devices": "playwright test --config=playwright.devices.config.ts",
+    "e2e:browserstack": "playwright test --config=playwright.browserstack.config.ts",
+    "e2e:catalog": "node scripts/check-e2e-catalog.mjs",
+    "test:ci": "pnpm test && pnpm run e2e:catalog && pnpm run e2e:pwa",
     "sample": "node scripts/make-sample.mjs"
   },
   "keywords": [],
@@ -24,7 +30,9 @@
   "packageManager": "pnpm@10.33.0",
   "devDependencies": {
     "@napi-rs/canvas": "^1.0.3",
+    "@playwright/test": "^1.62.1",
     "@types/node": "^26.2.0",
+    "playwright": "1.62.1",
     "typescript": "^7.0.2",
     "vite": "^8.2.1"
   },

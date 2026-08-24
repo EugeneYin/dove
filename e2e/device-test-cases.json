@@ -1,0 +1,47 @@
+{
+  "schemaVersion": 1,
+  "baselineAppVersion": "2.1.0",
+  "suite": {
+    "id": "pwa-devices",
+    "runner": "playwright",
+    "testFile": "e2e/device-flow.ts",
+    "cases": [
+      {
+        "id": "DEVICE-001",
+        "name": "HTTPS 部署与 PWA 元数据",
+        "introducedIn": "2.1.0",
+        "protects": "Cloudflare Preview 可访问，且 manifest 满足 PWA 启动与 standalone 显示要求"
+      },
+      {
+        "id": "DEVICE-002",
+        "name": "Service Worker 接管",
+        "introducedIn": "2.1.0",
+        "protects": "Chromium 与真机 Safari 能注册并由 Service Worker 接管页面"
+      },
+      {
+        "id": "DEVICE-003",
+        "name": "PDF、词典与画布",
+        "introducedIn": "2.1.0",
+        "protects": "目标设备能加载 PDF、离线词典并输出非空画布"
+      },
+      {
+        "id": "DEVICE-004",
+        "name": "桌面双击或移动端长按取词",
+        "introducedIn": "2.1.0",
+        "protects": "桌面和触屏设备各自的主要取词手势能打开正确词卡"
+      },
+      {
+        "id": "DEVICE-005",
+        "name": "v2.1 诊断面板",
+        "introducedIn": "2.1.0",
+        "protects": "目标设备上能打开诊断面板并显示当前版本与运行时信息"
+      },
+      {
+        "id": "DEVICE-006",
+        "name": "真机断网后离线重载",
+        "introducedIn": "2.1.0",
+        "protects": "真机预缓存后切断设备网络，仍能重载、恢复文档并离线查词"
+      }
+    ]
+  }
+}

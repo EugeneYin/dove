@@ -47,6 +47,11 @@ export function loadDict(): Promise<void> {
   return loading;
 }
 
+/** 词典是否真的加载完整，诊断面板要用 */
+export function dictInfo(): { words: number; lemmas: number } | null {
+  return data ? { words: Object.keys(data.w).length, lemmas: Object.keys(data.l).length } : null;
+}
+
 function toEntry(key: string, row: Row, queried: string): Entry {
   const [phonetic, translation, definition] = row;
   return {

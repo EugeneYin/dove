@@ -101,6 +101,140 @@ body {
   white-space: nowrap;
 }
 
+/* ---- 诊断面板 ---- */
+
+/* 内联脚本的兜底渲染：模块没起来时页面上只有它 */
+#diag-fallback {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  margin: 0;
+  padding: 12px;
+  overflow: auto;
+  background: var(--card);
+  font-size: 11px;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.diag-panel {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  background: var(--card);
+  /* 面板要能选中复制，而 body 上禁掉了选择 */
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+.diag-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: calc(10px + env(safe-area-inset-top)) 12px 10px;
+  border-bottom: 1px solid var(--border);
+}
+
+.diag-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px 12px calc(12px + env(safe-area-inset-bottom));
+  -webkit-overflow-scrolling: touch;
+}
+
+.diag-section {
+  margin-bottom: 18px;
+}
+
+.diag-section h3 {
+  margin: 0 0 6px;
+  font-size: 12px;
+  font-weight: 500;
+  color: #a1a1aa;
+}
+
+.diag-row {
+  display: flex;
+  gap: 10px;
+  padding: 3px 0;
+  font-size: 12px;
+  border-bottom: 1px solid var(--bg);
+}
+
+.diag-row.bad {
+  color: #dc2626;
+}
+
+.diag-label {
+  flex: 0 0 34%;
+  color: #71717a;
+}
+
+.diag-row.bad .diag-label {
+  color: inherit;
+}
+
+.diag-value {
+  flex: 1;
+  min-width: 0;
+  /* UA、缺失清单都很长，必须能折行，否则读不到后半段 */
+  white-space: pre-wrap;
+  word-break: break-all;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+.diag-log {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.diag-line {
+  display: flex;
+  gap: 8px;
+  padding: 2px 0;
+}
+
+.diag-line.warn {
+  color: #b45309;
+}
+
+.diag-line.error {
+  color: #dc2626;
+}
+
+.diag-line.old {
+  opacity: 0.55;
+}
+
+.diag-time {
+  flex: 0 0 auto;
+  color: #a1a1aa;
+}
+
+.diag-msg {
+  flex: 1;
+  min-width: 0;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.diag-sep {
+  margin: 6px 0;
+  color: #a1a1aa;
+  text-align: center;
+}
+
+.diag-copyout {
+  width: 100%;
+  height: 120px;
+  margin-top: 8px;
+  font-size: 11px;
+}
+
 /* ---- 最近阅读 ---- */
 
 #recent {
