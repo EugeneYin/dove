@@ -129,6 +129,7 @@ curl --fail --location "$BASE_URL/sw.js" --output /dev/null
 | workflow 根本没出现 | trigger、分支、workflow 是否已在远端 | 文件未推送、分支不匹配、Actions 被禁用 | 新 push 后 `gh run list` 可见 |
 | install 失败 | lockfile、Node/pnpm/Action 版本 | lock 漂移、registry、Action 主版本过旧 | frozen install + `test:ci` |
 | baseline 失败 | HTML/JSON/JUnit/Trace | 产品回归、SW 清单、OCR 超时 | 本地关闭源站用例通过 |
+| 词典报 `Unexpected token '<'` | `public/dict.json.gz`、CI 的 `Build offline dictionary` | 生成物被忽略且 CI 未生成，SPA fallback 返回 HTML | `pnpm run dict && pnpm run test:ci` 通过 |
 | deploy 被跳过 | GitHub Secrets 名称 | Cloudflare Secret 缺失 | deploy job 产生 URL |
 | deploy 401/403 | Token scope、Account ID | Token 过期/账号不匹配 | `wrangler whoami` + 新 Preview |
 | Pages 项目不存在 | `pages project list` | 项目名/变量错误 | `dove-e2e` 可列出并部署 |

@@ -5,15 +5,19 @@
 
 ## 1. 当前结论
 
-截至 2026-08-24，仓库侧配置已经搭建完成，本地可验证部分已经通过；云端能力需要先配置账号、
-Secrets 并把分支推送到 GitHub，才能产生第一份 Cloudflare 和 BrowserStack 实测证据。
+截至 2026-08-24，GitHub Actions 与 Cloudflare Pages 已完成首轮实测：完整离线基线、Pages
+部署和四端公网设备模拟均通过。BrowserStack 真机与安装到主屏幕后的人工验收尚未执行。
 
 验证对象：
 
 - 应用版本：`2.1.0`
 - 分支：`feat/v2.1-diagnostics`
 - 需求基线：PR #2 的 `3ae47bfe716a0b086e4e94cf3782da1c1d45fd2a`
-- E2E 实现：以本文件所在提交和对应 GitHub Run 的完整 SHA 为准
+- E2E 实现提交：`48a4d0bcbf9dc3b67fbc469ff9ddf860ccc4fb64`
+- GitHub Run：[32707819495](https://github.com/EugeneYin/dove/actions/runs/32707819495)
+- PR 测试 merge ref：`72ae0703d4668fe0752c897645cad9a96c50b34e`
+- Cloudflare deployment：`https://e4dc4e60.dove-e2e.pages.dev`
+- PR 稳定别名：`https://pr-2.dove-e2e.pages.dev`
 
 | 层次 | 当前状态 | 2026-08-24 结果 |
 |---|---|---|
@@ -23,12 +27,12 @@ Secrets 并把分支推送到 GitHub，才能产生第一份 Cloudflare 和 Brow
 | 桌面 Chromium 完整离线基线 | 已实现 | 1 个场景、12 个步骤通过 |
 | PC / iPhone / iPad / Android Pad 模拟 smoke | 已实现 | 4 / 4 project 通过 |
 | Cloudflare Quick Tunnel 技术验证 | 临时验证 | 三个 URL 探针 200，公网四端 smoke 4 / 4 通过；URL 已随进程关闭 |
-| Cloudflare Pages Preview | 工作流已实现 | 尚未部署验证：本机没有 Cloudflare 凭据 |
+| Cloudflare Pages Preview | 已启用 | Run 32707819495 创建 `dove-e2e` 并部署；首页、manifest、SW、词典均为 200 |
 | BrowserStack 三类真机 | 配置与用例已实现 | 尚未运行：本机没有 BrowserStack 凭据 |
-| GitHub Actions | 工作流已实现 | 尚未运行：当前分支和改动未推送 |
+| GitHub Actions | 已验证 | baseline、Pages deploy、device smoke 全部成功；两类 Artifact 已归档 90 天 |
 
-因此现在可以准确说：**代码和流水线结构已完备，本地基线已通过；真机环境尚待云端账号激活和
-首轮 Run 验收，不能把本地设备模拟结果写成真机通过。**
+因此现在可以准确说：**可回溯的四端公网设备模拟 E2E 环境已经完成并通过；BrowserStack
+真机和人工安装测试尚未执行，不能把本次 4 / 4 写成真机通过。**
 
 ## 2. 要达到的目标
 
@@ -273,6 +277,9 @@ GitHub Artifact 保留 90 天，Git tag/commit 是永久索引。发布版本应
 - 构建当前仍有 Vite deprecated option 和大 chunk 警告；本次不影响通过，但应在依赖升级任务中处理。
 
 ## 11. 云端首轮验收标准
+
+本次 Run 已满足 GitHub Run、Cloudflare 四个资源探针、Device emulation 4 / 4 和两类 Artifact
+可回溯。BrowserStack 3 / 3 与三种系统的人工安装验收仍是后续真机阶段的待办。
 
 只有以下条件全部满足，才能把状态从“仓库侧完成”改为“四端真机环境已完备”：
 
