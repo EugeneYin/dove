@@ -63,3 +63,11 @@ Strong success criteria let you loop independently. Weak criteria ("make it work
 ---
 
 **These guidelines are working if:** fewer unnecessary changes in diffs, fewer rewrites due to overcomplication, and clarifying questions come before implementation rather than after mistakes.
+
+## 5. Dove Agent Modes
+
+- Read [`docs/agents/README.md`](docs/agents/README.md) before selecting a project Agent mode.
+- Default to AllInOne for simple work; do not create or start Agent Teams before the user explicitly confirms the proposed team and scope.
+- In Agent Teams mode, PMO is the only user-facing Agent and all roles follow
+  [`docs/agents/team-protocol.md`](docs/agents/team-protocol.md).
+- PM owns requirements, RD owns technical design and Coding, QA owns independent verification, and OPS owns environments and delivery operations.
