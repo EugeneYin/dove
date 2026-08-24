@@ -3,7 +3,7 @@ name: PWA E2E
 on:
   pull_request:
   push:
-    branches: [master, main, "feat/**"]
+    branches: [master, main]
   schedule:
     - cron: "0 3 * * *"
   workflow_dispatch:

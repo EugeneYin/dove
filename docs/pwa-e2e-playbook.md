@@ -22,6 +22,7 @@ Secrets 并把分支推送到 GitHub，才能产生第一份 Cloudflare 和 Brow
 | 用例目录一致性 | 已实现 | 12 个 `PWA-xxx` + 6 个 `DEVICE-xxx`，校验通过 |
 | 桌面 Chromium 完整离线基线 | 已实现 | 1 个场景、12 个步骤通过 |
 | PC / iPhone / iPad / Android Pad 模拟 smoke | 已实现 | 4 / 4 project 通过 |
+| Cloudflare Quick Tunnel 技术验证 | 临时验证 | 三个 URL 探针 200，公网四端 smoke 4 / 4 通过；URL 已随进程关闭 |
 | Cloudflare Pages Preview | 工作流已实现 | 尚未部署验证：本机没有 Cloudflare 凭据 |
 | BrowserStack 三类真机 | 配置与用例已实现 | 尚未运行：本机没有 BrowserStack 凭据 |
 | GitHub Actions | 工作流已实现 | 尚未运行：当前分支和改动未推送 |
@@ -265,6 +266,9 @@ GitHub Artifact 保留 90 天，Git tag/commit 是永久索引。发布版本应
 - Cloudflare URL 必须等 `manifest.webmanifest` 可访问后再启动设备测试，工作流已有 retry。
 - 真实断网步骤必须在 `finally` 恢复网络，避免污染后续 BrowserStack session。
 - 不要把 Quick Tunnel 当 CI 环境；其 URL 随进程消失，也没有与 Git SHA 对应的部署记录。
+- 本机已有 SSH Tunnel 的 `~/.cloudflared/config.yml` 时，临时 Quick Tunnel 要用
+  `cloudflared --config /dev/null tunnel --url http://127.0.0.1:4173`；否则 SSH ingress 的
+  catch-all 规则会让临时域名全部返回 404。
 - 构建当前仍有 Vite deprecated option 和大 chunk 警告；本次不影响通过，但应在依赖升级任务中处理。
 
 ## 11. 云端首轮验收标准

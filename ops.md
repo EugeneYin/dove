@@ -6,7 +6,7 @@
 ## 1. 环境拓扑
 
 ```text
-GitHub PR / feat push / default-branch push / schedule / manual
+GitHub PR / default-branch push / schedule / manual
   -> PWA regression baseline (no secrets)
   -> build dist/
   -> Cloudflare Pages Direct Upload preview
@@ -85,8 +85,8 @@ capability，并在变更说明中记录查询日期、替代设备和旧/新版
 
 ## 4. 首轮验收
 
-推送 `feat/**` 分支会运行本地基线、Pages Preview 和四端模拟；真机只在默认分支 push、每日计划
-任务或手动选择 `real_devices=true` 时运行，避免功能分支消耗真机分钟数。
+更新 PR 会运行本地基线、Pages Preview 和四端模拟；真机只在默认分支 push、每日计划任务或
+手动选择 `real_devices=true` 时运行，避免功能分支消耗真机分钟数。
 
 ```bash
 git push origin feat/v2.1-diagnostics
@@ -134,6 +134,7 @@ curl --fail --location "$BASE_URL/sw.js" --output /dev/null
 | BrowserStack 设备创建失败 | capability、配额、并发 | 设备下架、版本不支持、套餐限制 | 替代矩阵 3/3 |
 | 真机断网步骤失败 | session id、network API、finally | 套餐不支持、网络未切换、恢复失败 | 探针失败后离线重载成功 |
 | 报告/Artifact 缺失 | upload step、路径 | reporter 路径变化、前序提前退出 | `if: always()` 上传成功 |
+| Quick Tunnel 全部 404 | `~/.cloudflared/config.yml` | 误加载 SSH Tunnel 的 ingress catch-all | 使用 `--config /dev/null` 后三个探针 200 |
 
 ## 7. 分层排障顺序
 
