@@ -7,11 +7,14 @@
 | 单元测试 | `npm test` | 纯逻辑：分词、归一化、词典查询 | 无（`node --test` 内置） |
 | 端到端 | `npm run e2e` | 真实事件、渲染、对齐、OCR、兼容性 | 本机 Chrome + `npm run dev` |
 | 离线端到端 | `pnpm run e2e:pwa` | 安装、预缓存、关闭服务器后的全部功能 | Playwright Chromium（自行构建并起 preview） |
+| 设备模拟 | `pnpm run e2e:devices` | PC / iPhone / iPad / Android Pad 的布局、手势和在线 smoke | Playwright Chromium + WebKit |
+| 云端真机 | `pnpm run e2e:browserstack` | iPhone / iPad / Android Pad 的真实浏览器与断网重载 | Cloudflare HTTPS URL + BrowserStack 凭据 |
 | 类型检查 | `npm run typecheck` | 接口契约（含 `sw.js` 的 JSDoc） | 无 |
 
 普通 e2e 仍用 CDP 直接驱动本机 Chrome；PWA 离线套件已迁入 Playwright，以便在
 GitHub Actions 自动运行、生成版本化报告并保存失败 Trace。旧离线 CDP 脚本保留为
-`pnpm run e2e:pwa:legacy`。环境细节见 [PWA E2E Playbook](pwa-e2e-playbook.md)。
+`pnpm run e2e:pwa:legacy`。设备模拟不能替代真机；云端真机任务的启用条件、凭据和局限见
+[PWA E2E Playbook](pwa-e2e-playbook.md)。
 
 ## 一条必须遵守的原则
 
@@ -94,7 +97,7 @@ target 里，未必受同一份限制——用它来测离线，等于让被测�
 中间三条（对齐、OCR、旧 WebKit）是核心防线，分别对应三类曾经真实发生的故障。
 最后一条守的是排查手段本身：诊断面板坏掉时真机上就再也拿不到现场了。
 
-## 离线端到端用例（11）
+## 离线端到端用例（12）
 
 `pnpm run e2e:pwa`。先联网装好 Service Worker 并等预缓存完成，随后**关闭服务器**，
 再重新加载页面跑余下的用例。
@@ -112,10 +115,11 @@ target 里，未必受同一份限制——用它来测离线，等于让被测�
 | 离线取词与词形还原 | `conveys → convey`，释义来自缓存的词典 |
 | 离线 OCR 扫描件 | 引擎与语言包全部来自缓存 |
 | 离线在扫描件上取词 | OCR 合成文本层 + 词典查询在离线下贯通 |
+| 离线打开 v2.1 诊断面板 | 源站不可访问时仍能取得版本、能力和运行时现场 |
 
 倒数第二、三条是这一轮的核心防线：它们同时证明预缓存清单没有缺口、变体探测选对了。
 
-## 无法自动验证的部分
+## 无法由当前 E2E 可靠验证的部分
 
 以下只能人工在真机上确认，改动相关代码后请手动复验：
 

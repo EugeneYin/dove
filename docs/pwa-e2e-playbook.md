@@ -1,178 +1,280 @@
-# Dove PWA E2E 环境搭建 Playbook
+# Dove PWA E2E 搭建与使用 Playbook
 
-这份文档说明 Dove 的 PWA E2E 环境为什么这样搭、各文件负责什么，以及以后如何新增、运行和回溯测试。
+这份文档说明 Dove 如何用 GitHub Actions、Cloudflare Pages、Playwright 和 BrowserStack
+建立 PC、iPhone、iPad、Android Pad 的可回溯 E2E 能力，以及这套方案能证明什么、不能证明什么。
 
-## 1. 目标与验收标准
+## 1. 当前结论
 
-这套环境解决四件事：
+截至 2026-08-24，仓库侧配置已经搭建完成，本地可验证部分已经通过；云端能力需要先配置账号、
+Secrets 并把分支推送到 GitHub，才能产生第一份 Cloudflare 和 BrowserStack 实测证据。
 
-1. 在真实 Chromium、真实 Service Worker、Cache Storage 和 IndexedDB 中运行。
-2. 离线验证时真正关闭 HTTP 服务器，避免 Service Worker 仍能访问网络造成假通过。
-3. 每个用例有稳定编号，并保存首次进入基线的版本，能从版本和 Git 提交反查测试证据。
-4. PR 和主分支提交自动执行；失败时保留 HTML、JUnit、JSON、截图、视频和 Trace。
+验证对象：
 
-当前基线是应用 `v2.1.0`，用例目录为 `e2e/test-cases.json`，共有 11 个 PWA 用例。
+- 应用版本：`2.1.0`
+- 分支：`feat/v2.1-diagnostics`
+- 需求基线：PR #2 的 `3ae47bfe716a0b086e4e94cf3782da1c1d45fd2a`
+- E2E 实现：以本文件所在提交和对应 GitHub Run 的完整 SHA 为准
 
-## 2. 文件和职责
+| 层次 | 当前状态 | 2026-08-24 结果 |
+|---|---|---|
+| 单元测试 | 已实现 | 9 / 9 通过 |
+| 原有交互 E2E | 已实现 | 13 / 13 通过，含 v2.1 诊断面板 |
+| 用例目录一致性 | 已实现 | 12 个 `PWA-xxx` + 6 个 `DEVICE-xxx`，校验通过 |
+| 桌面 Chromium 完整离线基线 | 已实现 | 1 个场景、12 个步骤通过 |
+| PC / iPhone / iPad / Android Pad 模拟 smoke | 已实现 | 4 / 4 project 通过 |
+| Cloudflare Pages Preview | 工作流已实现 | 尚未部署验证：本机没有 Cloudflare 凭据 |
+| BrowserStack 三类真机 | 配置与用例已实现 | 尚未运行：本机没有 BrowserStack 凭据 |
+| GitHub Actions | 工作流已实现 | 尚未运行：当前分支和改动未推送 |
+
+因此现在可以准确说：**代码和流水线结构已完备，本地基线已通过；真机环境尚待云端账号激活和
+首轮 Run 验收，不能把本地设备模拟结果写成真机通过。**
+
+## 2. 要达到的目标
+
+这套环境把验证拆成三层：
+
+1. 每次 PR/主分支提交都在 GitHub Runner 上执行无需 Secret 的桌面完整离线回归。
+2. 构建产物部署到 Cloudflare Pages Preview，以真实公网 HTTPS 地址执行四端浏览器兼容 smoke。
+3. 主分支、夜间计划任务或手动触发时，在 BrowserStack 的 iPhone、iPad、Android Pad 真机上
+   验证 Safari/Chrome、触控、Service Worker、PDF、词典、诊断面板和断网后重载。
+
+每一层均保存用例目录、HTML/JUnit/JSON 报告和失败证据，并以应用版本与 Git SHA 命名 Artifact。
+
+## 3. 架构和原理
+
+```text
+GitHub PR / push / schedule / manual
+  ├─ PWA regression baseline
+  │    └─ 本地 Vite Preview → Chromium → 预缓存 → 关闭源站 → 离线功能闭环
+  ├─ Cloudflare Pages preview
+  │    └─ dist/ → 固定项目下的分支 Preview HTTPS URL
+  ├─ Device emulation smoke
+  │    └─ PC Chromium / iPhone WebKit / iPad WebKit / Android Pad Chromium
+  └─ BrowserStack real devices
+       └─ iPhone Safari / iPad Safari / Galaxy Tab Chrome → 真机断网 → 离线重载
+```
+
+### 为什么保留本地完整离线基线
+
+`e2e/pwa.spec.ts` 会先安装 Service Worker、完整预缓存并写入 IndexedDB，然后直接关闭
+Vite HTTP Server，再验证冷启动、词典、最近阅读、续读、OCR、取词和诊断面板。
+
+关闭源站比只调用浏览器的网络模拟更可信：页面和 Service Worker 都无法再访问源站，能避免
+“看起来离线，实际仍由网络补资源”的假通过。这个基线无须云端 Secret，fork PR 也能运行。
+
+### Cloudflare Pages 的作用
+
+Cloudflare Pages 提供公开、可追踪的 HTTPS Preview URL。PWA 的 Service Worker 需要安全上下文，
+BrowserStack 真机也需要从公网访问应用；Pages 把一次 GitHub Run 的构建产物变成两者共同的测试入口。
+
+Pages 只负责托管，不负责驱动设备，也不能替代本地关闭源站的离线基线。
+
+### 设备模拟的作用
+
+Playwright 的 device descriptor 模拟 viewport、screen、UA、DPR、触控和移动布局，适合快速发现
+响应式布局、WebKit/Chromium 差异、文件加载和手势问题。
+
+它不等于真机。Playwright WebKit 也不等于设备上的 Safari；WebKit 模拟 project 中的 Service Worker
+步骤会明确记录 limitation，而不是伪造通过。
+
+### BrowserStack 真机的作用
+
+真机任务通过 Playwright WebSocket 直接连接 BrowserStack，不额外引入 BrowserStack SDK。
+当前矩阵为：
+
+| Project | 真机 | 系统 | 浏览器 |
+|---|---|---|---|
+| `browserstack-iphone` | iPhone 16 Pro Max | iOS 18.6 | Safari |
+| `browserstack-ipad` | iPad Pro 11 2021 | iPadOS 18.6 | Safari |
+| `browserstack-android-pad` | Samsung Galaxy Tab S9 | Android 13 | Chrome |
+
+每台设备先预缓存，然后通过 BrowserStack session/network API 切到 `no-network`，确认公网探针失败，
+再重载应用并验证词典、最近文档和离线取词，最后在 `finally` 中切回 `4g-lte-good`。
+
+设备与系统版本属于供应商可用性配置；若 BrowserStack 下架某个组合，应在
+`e2e/browserstack-fixture.ts` 中更新，并记录变更日期。
+
+## 4. 文件与职责
 
 | 文件 | 职责 |
 |---|---|
-| `playwright.config.ts` | 浏览器、超时、重试、报告器和版本元数据 |
-| `e2e/pwa.spec.ts` | PWA 联网准备、关闭服务器、离线冷启动与完整功能回归 |
-| `e2e/test-cases.json` | 稳定用例编号、名称、首次进入版本和所保护的行为 |
-| `scripts/check-e2e-catalog.mjs` | 阻止“测试已写但未登记”或“目录有用例但实现丢失” |
-| `.github/workflows/pwa-e2e.yml` | PR、主分支和手动触发的自动化入口 |
-| `scripts/e2e-pwa.mjs` | 迁移前的 CDP 版本，保留为 `e2e:pwa:legacy` 供对照 |
+| `playwright.config.ts` | 桌面 Chromium 完整离线基线与版本/Git 报告元数据 |
+| `e2e/pwa.spec.ts` | 关闭本地源站后的 12 步离线链路 |
+| `e2e/test-cases.json` | 稳定的 `PWA-001` 至 `PWA-012` 目录 |
+| `playwright.devices.config.ts` | PC、iPhone、iPad、Android Pad 模拟矩阵 |
+| `e2e/devices.spec.ts` | 设备模拟入口 |
+| `playwright.browserstack.config.ts` | BrowserStack 三个真机 project、报告与超时 |
+| `e2e/browserstack-fixture.ts` | 真机能力、连接、关闭和 session 状态上报 |
+| `e2e/device-flow.ts` | 模拟与真机共用的 6 步用户链路 |
+| `e2e/device-test-cases.json` | 稳定的 `DEVICE-001` 至 `DEVICE-006` 目录 |
+| `scripts/check-e2e-catalog.mjs` | 检查两份目录与源码中的 step 编号完全一致 |
+| `tsconfig.e2e.json` | 把 Playwright 配置和 E2E 源码纳入类型检查 |
+| `.github/workflows/pwa-e2e.yml` | 基线、Pages 部署、设备 smoke、真机任务与证据留存 |
 
-## 3. 本地初始化
+主要组件版本来自 `package.json` 和锁文件。Playwright Test 与本地客户端固定在 `1.62.1`；
+根据 2026-08-24 的 BrowserStack 兼容表，远端 iOS 固定为 Playwright `1.61`，Android 固定为
+`1.59`，并传入准确的 `client.playwrightVersion` 供 BrowserStack 做协议映射。供应商支持表变化时需同步更新。
 
-项目使用 `pnpm@10.33.0` 和 Node.js 24：
+## 5. 用例覆盖
+
+### 完整离线基线
+
+`pnpm run e2e:pwa` 覆盖：
+
+- `PWA-001..002`：预缓存完整性与 OCR 核心变体；
+- `PWA-003..004`：源站关闭后的冷启动与离线词典；
+- `PWA-005..008`：IndexedDB 最近文档、页码和正文恢复；
+- `PWA-009..011`：PDF/OCR 文本层、词形还原与离线取词；
+- `PWA-012`：离线状态下仍能打开 v2.1 诊断面板并看到版本和运行时信息。
+
+### 设备共用链路
+
+`DEVICE-001..006` 覆盖：
+
+1. HTTPS、安全上下文、manifest 与应用外壳；
+2. Service Worker 接管；
+3. PDF、词典和非空画布；
+4. 桌面双击或触屏长按取词；
+5. v2.1 诊断面板；
+6. 真机预缓存、切断网络、离线重载、恢复文档和查词。
+
+设备模拟只执行 1–5 的适用部分，第 6 步明确标注为真机限定。
+
+## 6. 本地运行
+
+初始化：
 
 ```bash
-pnpm install
-pnpm exec playwright install chromium
+pnpm install --frozen-lockfile
+pnpm exec playwright install chromium webkit
 ```
 
-Linux CI 需要浏览器系统依赖，因此工作流使用：
-
-```bash
-pnpm exec playwright install --with-deps chromium
-```
-
-Playwright 浏览器由工具自己管理，不再依赖 `/Applications/Google Chrome.app` 这类本机路径。
-
-## 4. 如何运行
-
-完整 CI 同等检查：
+与 GitHub 基线相同的检查：
 
 ```bash
 pnpm run test:ci
 ```
 
-它依次执行：
-
-```text
-单元测试
-  → 用例目录一致性检查
-  → 类型检查与生产构建
-  → Playwright PWA E2E
-```
-
-只运行 PWA E2E：
+本地四端模拟：
 
 ```bash
-pnpm run e2e:pwa
+pnpm run e2e:devices
 ```
 
-查看最近一次 HTML 报告：
+对已经部署的 HTTPS 地址执行四端模拟：
 
 ```bash
-pnpm run e2e:pwa:report
+BASE_URL=https://example.pages.dev pnpm run e2e:devices
 ```
 
-旧 CDP 脚本仍可用于结果对照：
+手工运行 BrowserStack 真机：
 
 ```bash
-pnpm run e2e:pwa:legacy
+BASE_URL=https://example.pages.dev \
+BROWSERSTACK_USERNAME=... \
+BROWSERSTACK_ACCESS_KEY=... \
+BROWSERSTACK_BUILD_ID=dove-local-v2.1 \
+pnpm run e2e:browserstack
 ```
 
-## 5. 测试生命周期
+不要把凭据写进 `.env` 后提交，也不要把完整 WebSocket URL 打进日志，因为 capability 中包含账号凭据。
 
-`e2e/pwa.spec.ts` 的一次运行共享同一个浏览器上下文，因为 Cache Storage、Service Worker 和 IndexedDB 状态正是被测对象：
+## 7. GitHub 与云端的一次性启用
 
-```text
-启动 Vite Preview
-  → 浏览器安装并激活 Service Worker
-  → 等待全部离线资源预缓存
-  → 联网写入两本最近文档和第 3 页阅读位置
-  → 关闭 Vite HTTP Server 并确认 URL 不可访问
-  → 从 Service Worker 缓存冷启动
-  → 验证词典、最近文档、续读、取词和 OCR
-```
+### Cloudflare
 
-关闭服务器是关键基准。单纯调用浏览器的离线模拟可能只影响页面请求；直接停止源站才能证明页面和 Service Worker 都没有偷偷访问网络。
+1. 在 Cloudflare Dashboard 创建 Direct Upload 类型的 Pages 项目，默认名为 `dove-e2e`。
+2. 创建只允许目标 Account 的 Cloudflare Pages Edit API Token。
+3. 在 GitHub Actions Secrets 配置：
+   - `CLOUDFLARE_ACCOUNT_ID`
+   - `CLOUDFLARE_API_TOKEN`
+4. 若项目名不是 `dove-e2e`，新增 Repository Variable：
+   - `CLOUDFLARE_PAGES_PROJECT`
 
-## 6. 用例如何回溯
+项目必须先存在；工作流只部署 `dist/`，不会静默创建或删除 Cloudflare 项目。
 
-三层信息共同形成证据链：
+### BrowserStack
 
-- `e2e/test-cases.json`：记录稳定编号、名称、首次进入版本和防回归目标。
-- `playwright.config.ts`：把 `package.json` 版本、Git SHA 和 Git 分支写进报告元数据。
-- GitHub Artifact：文件名为 `dove-pwa-e2e-v<版本>-<完整 SHA>`，保留 90 天。
+在 GitHub Actions Secrets 配置：
 
-因此从任何失败报告都能回答：运行的是哪个应用版本、哪次提交、哪条用例、失败时的页面状态是什么。
+- `BROWSERSTACK_USERNAME`
+- `BROWSERSTACK_ACCESS_KEY`
 
-Git 仍是永久历史。需要长期保存某个发布版本的证据时，应在发布提交上打 tag，并从对应 Actions Run 下载 Artifact；如果团队要求超过 90 天留存，可把报告同步到长期对象存储。
+建议使用团队专用自动化账号，限制谁能读取或更新 Secrets，并定期轮换 Access Key。
 
-## 7. 如何新增用例
+### GitHub
 
-先为用例分配下一个稳定编号。例如新增 `PWA-012`：
+将本次改动推送后：
 
-1. 在 `e2e/test-cases.json` 添加编号、名称、`introducedIn` 和 `protects`。
-2. 在 `e2e/pwa.spec.ts` 添加同编号的 `test.step`。
-3. 运行目录校验和目标测试。
+1. 手动运行一次 `PWA E2E`，保留 `real_devices=true`；
+2. 确认四个 job 的结论和 Artifact；
+3. 在分支保护中把 `PWA regression baseline` 设为 Required Check；
+4. 根据真机额度决定是否保留每日 `03:00 UTC` 的计划任务。
 
-```bash
-pnpm run e2e:catalog
-pnpm run e2e:pwa
-```
+同仓库 PR 可以部署 Preview；fork PR 不会接触 Cloudflare Secrets，因此只运行无 Secret 的本地基线。
+真机任务默认只在主分支 push、夜间计划任务和明确选择的手动运行中执行，避免每个 PR 消耗真机分钟数。
 
-示例：
+## 8. 报告和回溯
 
-```ts
-await test.step("PWA-012 离线打开分享目标", async () => {
-  // 准备状态
-  // 执行用户可观察的行为
-  // 用独立于实现的结果断言
-});
-```
-
-目录检查会比较测试源码中的 `PWA-xxx` 与 JSON：任一侧遗漏、重复或多出都会失败，CI 也会阻止合并。
-
-新增测试时继续遵守项目已有原则：基准来自被测对象之外。例如页码恢复既检查 `3 / 3`，也检查 PDF 实际文本是 `gamma`；离线能力通过关闭服务器验证，而不是让网络模拟器自证。
-
-## 8. 报告与排错
-
-每次运行生成：
-
-| 路径 | 内容 |
+| Artifact/路径 | 内容 |
 |---|---|
-| `playwright-report/index.html` | 人可读报告、步骤和附件 |
-| `test-results/results.json` | 机器可读结果与版本元数据 |
-| `test-results/junit.xml` | CI/测试管理平台通用格式 |
-| `test-results/artifacts/` | 失败截图、视频、Trace 和错误上下文 |
+| `dove-pwa-e2e-v<version>-<sha>` | 完整离线基线、目录、HTML/JUnit/JSON、失败 Trace/截图/视频 |
+| `dove-device-smoke-<sha>` | 四端模拟报告和设备目录 |
+| `dove-browserstack-v2.1-<sha>` | 三台真机报告和设备目录 |
+| BrowserStack Automate dashboard | 真机 session、设备、系统、视频和供应商日志 |
+| Cloudflare deployment URL | 此次设备测试使用的公开构建 |
 
-失败后优先打开 HTML 报告；需要逐事件定位时运行：
+GitHub Artifact 保留 90 天，Git tag/commit 是永久索引。发布版本应保留：
 
-```bash
-pnpm exec playwright show-trace test-results/artifacts/<用例目录>/trace.zip
-```
+- Git SHA 与 tag；
+- GitHub Run URL；
+- Cloudflare deployment URL；
+- BrowserStack build/session URL；
+- 两份用例目录快照。
 
-常见问题：
+这样才能从某条失败回到当时的代码、产物、设备和用例定义。
 
-- Service Worker 未接管：确认测试运行的是生产构建和 `localhost`/HTTPS，而不是普通 Vite dev。
-- 离线资源失败：先看 `PWA-001` 的 failure 列表，再核对 `dist/sw.js` 注入的资源清单。
-- 点击错词：坐标测试必须保持 `1400 × 1800` 基准视口，并等待目标 PDF 的特征词出现，不能只等任意文本层。
-- OCR 超时：检查 Tesseract 核心、语言包是否进入缓存，并查看失败视频和页面错误附件。
+## 9. 局限性
 
-## 9. GitHub Actions 工作方式
+- Playwright 设备模拟不是 iPhone/iPad/Android Pad 真机。
+- BrowserStack 自动化验证的是设备浏览器中的 PWA Web 能力，不代表“添加到主屏幕”后的全部系统 UI。
+- iOS/iPadOS 添加到主屏幕、standalone 模式、安全区、系统分享/文件打开入口仍需人工真机验收。
+- 发音是否真正出声、音色质量、安装横幅、系统权限提示无法可靠由无头断言判断。
+- 真机 OCR 性能、GPU/内存上限和弱网续传宜单独做性能/人工测试；当前只断言功能结果。
+- Cloudflare 部署成功只证明产物可托管；完整“源站消失”离线能力仍由本地基线证明。
+- BrowserStack 设备清单、系统版本、并发数和 network API 能力会随账号套餐或供应商更新而变化。
+- 当前真机矩阵串行执行，稳定但耗时；不要在没有额度评估时提高 workers。
 
-工作流在以下情况自动执行：
+相关官方限制和能力说明：
 
-- 任意 Pull Request；
-- 推送到 `master` 或 `main`；
-- Actions 页面手动触发。
+- [Playwright 设备模拟](https://playwright.dev/docs/emulation)
+- [Playwright Service Worker](https://playwright.dev/docs/service-workers)
+- [Cloudflare Pages Direct Upload](https://developers.cloudflare.com/pages/get-started/direct-upload/)
+- [Cloudflare Wrangler GitHub Action](https://github.com/cloudflare/wrangler-action)
+- [BrowserStack Playwright iOS 真机](https://www.browserstack.com/docs/automate/playwright/playwright-ios/nodejs)
+- [BrowserStack Playwright Android 真机](https://www.browserstack.com/docs/automate/playwright/playwright-android/nodejs)
+- [BrowserStack 网络条件](https://www.browserstack.com/docs/automate/selenium/simulate-network-conditions)
 
-同一分支有更新时会取消旧运行，避免过时提交继续消耗 runner。工作流不需要 Cloudflare Token，也不部署代码，因此来自 fork 的 PR 也能安全执行。
+## 10. 使用注意事项
 
-把 `PWA E2E / PWA regression baseline` 设置为分支保护的 Required Check 后，失败提交就不能合并。
+- 只对生产构建运行 PWA 测试；Vite dev 模式不注册 Service Worker。
+- 修改离线资源清单、词典、PDF.js、Tesseract、IndexedDB 或诊断面板时，必须跑 `pnpm run test:ci`。
+- 修改布局、手势或移动端兼容代码时，再跑 `pnpm run e2e:devices`。
+- 修改 Service Worker、触控、Safari 兼容或系统相关代码时，运行 BrowserStack 真机并补人工安装测试。
+- 新增步骤时先分配稳定编号，同时更新 JSON 和源码；`pnpm run e2e:catalog` 会阻止单边遗漏。
+- Cloudflare URL 必须等 `manifest.webmanifest` 可访问后再启动设备测试，工作流已有 retry。
+- 真实断网步骤必须在 `finally` 恢复网络，避免污染后续 BrowserStack session。
+- 不要把 Quick Tunnel 当 CI 环境；其 URL 随进程消失，也没有与 Git SHA 对应的部署记录。
+- 构建当前仍有 Vite deprecated option 和大 chunk 警告；本次不影响通过，但应在依赖升级任务中处理。
 
-## 10. 接入 Cloudflare Preview（可选）
+## 11. 云端首轮验收标准
 
-当前测试刻意使用本地 Vite Preview：无 Secret、PR 都能运行，并且可以在测试中关闭源站验证真正离线。若以后还需要验证 Cloudflare 缓存头、路由或 Workers API，可在独立部署 Job 中：
+只有以下条件全部满足，才能把状态从“仓库侧完成”改为“四端真机环境已完备”：
 
-1. 用 Wrangler 部署 `dist/` 到 Pages Preview。
-2. 把 `deployment-url` 作为 `BASE_URL` 传给一组只读远程 smoke tests。
-3. 保留本地 PWA 离线套件；远端环境无法通过测试安全地“关闭 Cloudflare 源站”，不能替代它。
-
-Cloudflare API Token 只应存放在 GitHub Environment/Actions Secrets 中，绝不能写入仓库或测试报告。
+- GitHub 上能看到本次提交对应的 `PWA E2E` Run；
+- Cloudflare Preview 的 `/`、`/manifest.webmanifest` 和 `/sw.js` 均返回成功；
+- Device emulation smoke 4 / 4 通过；
+- BrowserStack iPhone、iPad、Android Pad 3 / 3 通过；
+- 三台真机的 `DEVICE-006` 都实际进入 no-network 并离线重载成功；
+- 所有 Artifact 可下载，并能从报告反查应用版本和 Git SHA；
+- iOS/iPadOS/Android 各至少做一次人工安装到主屏幕后断网启动验收。

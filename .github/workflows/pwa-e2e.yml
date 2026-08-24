@@ -3,8 +3,16 @@ name: PWA E2E
 on:
   pull_request:
   push:
-    branches: [master, main]
+    branches: [master, main, "feat/**"]
+  schedule:
+    - cron: "0 3 * * *"
   workflow_dispatch:
+    inputs:
+      real_devices:
+        description: Run BrowserStack real-device tests
+        required: false
+        default: true
+        type: boolean
 
 concurrency:
   group: pwa-e2e-${{ github.workflow }}-${{ github.ref }}
@@ -17,17 +25,17 @@ jobs:
   test:
     name: PWA regression baseline
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
         with:
           version: 10.33.0
           run_install: false
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 24
           cache: pnpm
@@ -40,7 +48,8 @@ jobs:
 
       - name: Read application version
         id: version
-        run: echo "app_version=$(node -p "require('./package.json').version")" >> "$GITHUB_OUTPUT"
+        run: |
+          echo "app_version=$(node -p 'require(\"./package.json\").version')" >> "$GITHUB_OUTPUT"
 
       - name: Run unit, catalog, build and PWA E2E tests
         run: pnpm run test:ci
@@ -51,7 +60,7 @@ jobs:
           echo "### Dove PWA E2E" >> "$GITHUB_STEP_SUMMARY"
           echo "- Application: v${{ steps.version.outputs.app_version }}" >> "$GITHUB_STEP_SUMMARY"
           echo "- Commit: ${{ github.sha }}" >> "$GITHUB_STEP_SUMMARY"
-          echo "- Test catalog: e2e/test-cases.json" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Test catalogs: e2e/test-cases.json, e2e/device-test-cases.json" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Archive versioned E2E evidence
         if: always()
@@ -62,5 +71,190 @@ jobs:
             playwright-report/
             test-results/
             e2e/test-cases.json
+            e2e/device-test-cases.json
+          if-no-files-found: warn
+          retention-days: 90
+
+  deploy:
+    name: Cloudflare Pages preview
+    needs: test
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    outputs:
+      url: ${{ steps.deploy.outputs.deployment-url }}
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 10.33.0
+          run_install: false
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build production bundle
+        run: pnpm run build
+
+      - name: Check Cloudflare credentials
+        id: cloudflare
+        env:
+          ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          if [[ -n "$ACCOUNT_ID" && -n "$API_TOKEN" ]]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "Cloudflare secrets are not configured; deployment and device jobs were skipped." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Resolve Pages project and preview branch
+        if: steps.cloudflare.outputs.enabled == 'true'
+        id: target
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          REF_NAME: ${{ github.ref_name }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          CONFIGURED_PROJECT: ${{ vars.CLOUDFLARE_PAGES_PROJECT }}
+        run: |
+          echo "project=${CONFIGURED_PROJECT:-dove-e2e}" >> "$GITHUB_OUTPUT"
+          if [[ "$EVENT_NAME" == "pull_request" ]]; then
+            echo "branch=pr-$PR_NUMBER" >> "$GITHUB_OUTPUT"
+          else
+            echo "branch=e2e-${REF_NAME//\//-}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Deploy to Cloudflare Pages
+        if: steps.cloudflare.outputs.enabled == 'true'
+        id: deploy
+        uses: cloudflare/wrangler-action@v4
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          packageManager: pnpm
+          wranglerVersion: "4.125.0"
+          command: pages deploy dist --project-name=${{ steps.target.outputs.project }} --branch=${{ steps.target.outputs.branch }}
+
+      - name: Record preview URL
+        if: steps.deploy.outputs.deployment-url != ''
+        run: |
+          echo "- Cloudflare Preview: ${{ steps.deploy.outputs.deployment-url }}" >> "$GITHUB_STEP_SUMMARY"
+
+  device-smoke:
+    name: Device emulation smoke
+    needs: [test, deploy]
+    if: needs.deploy.outputs.url != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 10.33.0
+          run_install: false
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Playwright Chromium and WebKit
+        run: pnpm exec playwright install --with-deps chromium webkit
+
+      - name: Wait for Cloudflare Preview
+        env:
+          BASE_URL: ${{ needs.deploy.outputs.url }}
+        run: curl --fail --location --retry 12 --retry-all-errors --retry-delay 5 "$BASE_URL/manifest.webmanifest" --output /dev/null
+
+      - name: Run PC and mobile emulation matrix
+        env:
+          BASE_URL: ${{ needs.deploy.outputs.url }}
+        run: pnpm run e2e:devices
+
+      - name: Archive device smoke evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dove-device-smoke-${{ github.sha }}
+          path: |
+            playwright-device-report/
+            test-results/device-*
+            e2e/device-test-cases.json
+          if-no-files-found: warn
+          retention-days: 90
+
+  real-devices:
+    name: BrowserStack real devices
+    needs: [test, deploy]
+    if: >-
+      needs.deploy.outputs.url != '' &&
+      (github.event_name == 'schedule' ||
+       (github.event_name == 'push' && github.ref_name == github.event.repository.default_branch) ||
+       (github.event_name == 'workflow_dispatch' && inputs.real_devices))
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 10.33.0
+          run_install: false
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Check BrowserStack credentials
+        id: browserstack
+        env:
+          USERNAME: ${{ secrets.BROWSERSTACK_USERNAME }}
+          ACCESS_KEY: ${{ secrets.BROWSERSTACK_ACCESS_KEY }}
+        run: |
+          if [[ -n "$USERNAME" && -n "$ACCESS_KEY" ]]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "BrowserStack secrets are not configured; real-device tests were skipped." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Run iPhone, iPad and Android Pad real-device tests
+        if: steps.browserstack.outputs.enabled == 'true'
+        env:
+          BASE_URL: ${{ needs.deploy.outputs.url }}
+          BROWSERSTACK_USERNAME: ${{ secrets.BROWSERSTACK_USERNAME }}
+          BROWSERSTACK_ACCESS_KEY: ${{ secrets.BROWSERSTACK_ACCESS_KEY }}
+          BROWSERSTACK_BUILD_ID: dove-v2.1-${{ github.run_id }}-${{ github.run_attempt }}
+        run: |
+          curl --fail --location --retry 12 --retry-all-errors --retry-delay 5 "$BASE_URL/manifest.webmanifest" --output /dev/null
+          pnpm run e2e:browserstack
+
+      - name: Archive real-device evidence
+        if: always() && steps.browserstack.outputs.enabled == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: dove-browserstack-v2.1-${{ github.sha }}
+          path: |
+            playwright-browserstack-report/
+            test-results/browserstack-*
+            e2e/device-test-cases.json
           if-no-files-found: warn
           retention-days: 90

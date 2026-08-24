@@ -23,7 +23,7 @@ async function stopServer() {
     server?.httpServer.close((error) => (error ? reject(error) : done()));
   });
   // Chromium 可能还保留 keep-alive 连接；强制关闭连接才能让离线基准真实成立。
-  server.httpServer.closeAllConnections();
+  if ("closeAllConnections" in server.httpServer) server.httpServer.closeAllConnections();
   await stopped;
 }
 
@@ -233,7 +233,15 @@ test.describe("PWA 离线完整链路", () => {
       );
       expect.soft(source).toBeTruthy();
       const popup = source ? await lookUp(page, source) : null;
-      expect.soft(popup?.word.toLowerCase()).toBe(source?.toLowerCase());
+      expect.soft(popup?.word?.toLowerCase()).toBe(source?.toLowerCase());
+    });
+
+    await test.step("PWA-012 离线打开 v2.1 诊断面板", async () => {
+      await page.locator("#diag").click();
+      await expect.soft(page.locator(".diag-panel")).toBeVisible();
+      await expect.soft(page.locator(".diag-panel")).toContainText(APP_VERSION);
+      expect.soft(await page.locator(".diag-row").count()).toBeGreaterThan(10);
+      await page.getByRole("button", { name: "关闭" }).click();
     });
 
     await testInfo.attach("page-errors", {

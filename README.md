@@ -132,6 +132,7 @@ npm run dev
 npm test         # 单元测试（node --test，无额外依赖）
 npm run e2e      # 端到端测试，需先 npm run dev
 pnpm run e2e:pwa # Playwright PWA 离线端到端，自行构建、关闭 preview 并生成报告
+pnpm run e2e:devices # PC / iPhone / iPad / Android Pad 的本地设备模拟矩阵
 pnpm run test:ci # 与 GitHub Actions 相同的完整检查
 npm run build    # 生产构建到 dist/
 npm run sample   # 重新生成测试样张
@@ -139,6 +140,8 @@ npm run sample   # 重新生成测试样张
 
 Service Worker 只在生产构建中启用，`npm run dev` 下不注册——否则改一行代码就要跟缓存
 搏斗。要验证离线行为请用 `npm run e2e:pwa` 或 `npm run build && npm run preview`。
+Cloudflare Pages + BrowserStack 真机环境的配置、运行命令与限制见
+[PWA E2E Playbook](docs/pwa-e2e-playbook.md)。
 
 ### 在手机 / Pad 上装起来
 
@@ -193,6 +196,8 @@ iOS / iPadOS 没有对应接口，只能在 Safari 里「分享 → 添加到主
 | [docs/pitfalls.md](docs/pitfalls.md) | 已踩过的坑与根因，改动前务必一读 |
 | [docs/testing.md](docs/testing.md) | 测试策略与全部用例清单 |
 | [docs/pwa-e2e-playbook.md](docs/pwa-e2e-playbook.md) | Playwright PWA E2E 环境、版本回溯与新增用例流程 |
+| [qa.md](qa.md) | 独立 QA Agent 的回归流程、证据标准与报告模板 |
+| [ops.md](ops.md) | 独立 Ops Agent 的环境启用、排障、维护与事故模板 |
 
 ## 技术栈
 

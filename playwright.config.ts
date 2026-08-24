@@ -14,6 +14,7 @@ function git(command: string[]) {
 
 export default defineConfig({
   testDir: "./e2e",
+  testMatch: "pwa.spec.ts",
   outputDir: "test-results/artifacts",
   fullyParallel: false,
   workers: 1,
