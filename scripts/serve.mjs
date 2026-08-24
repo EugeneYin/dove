@@ -1,7 +1,7 @@
 /**
  * 起一个「能真正安装 PWA」的服务器，供手机 / Pad 真机验证。
  *
- * 为什么不能直接用 `npm run preview` 加 --host：Service Worker 只在安全上下文里
+ * 为什么不能直接用 `pnpm run preview` 加 --host：Service Worker 只在安全上下文里
  * 注册，而 http://192.168.x.x 不算安全上下文（只有 localhost 与 https 算）。
  * 没有 SW 就不会触发 beforeinstallprompt，设备上根本看不到安装入口。
  *
@@ -29,7 +29,7 @@ const CERT_DIR = ".cache/certs";
 const tunnelMode = process.argv.includes("--tunnel");
 
 if (!existsSync("dist/index.html")) {
-  console.error("dist/ 是空的，先执行 npm run build");
+  console.error("dist/ 是空的，先执行 pnpm run build");
   process.exit(1);
 }
 

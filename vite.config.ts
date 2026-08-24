@@ -12,7 +12,7 @@ const TARGET = ["chrome90", "safari15", "firefox90"];
 /**
  * Service Worker 只在安全上下文里注册，局域网 IP 走 http 就装不了 PWA。
  * `scripts/serve.mjs` 会先用 mkcert 签好证书再设上这个变量；
- * 普通的 `npm run preview` 不设，仍然是明文 http。
+ * 普通的 `pnpm run preview` 不设，仍然是明文 http。
  */
 function previewHttps() {
   if (!process.env.DOVE_HTTPS) return undefined;
