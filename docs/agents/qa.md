@@ -55,11 +55,11 @@ QA 只保留可复现的只读证据和质量结论，不代替其他角色处�
 
 ## 2. 基线与通过标准
 
-当前版本化基线是 Dove `2.1.0`：
+当前版本化基线是 Dove `2.1.1`：
 
 | 层次 | 命令 | 通过标准 |
 |---|---|---|
-| 单元 + 目录 + 完整离线 | `pnpm run test:ci` | 9 个单元测试、18 个目录项、1 个 12 步 PWA 场景全部通过 |
+| 单元 + 目录 + 完整离线 | `pnpm run test:ci` | 9 个单元测试、21 个目录项、1 个 14 步 PWA 场景全部通过 |
 | 四端模拟 | `pnpm run e2e:devices` | PC、iPhone、iPad、Android Pad 4 个 project 全部通过 |
 | Cloudflare 四端模拟 | `BASE_URL=<preview> pnpm run e2e:devices` | Preview 三个探针成功，4 个 project 全部通过 |
 | BrowserStack 真机 | `pnpm run e2e:browserstack` | iPhone、iPad、Android Pad 3 个 project 全部通过，且 `DEVICE-006` 真断网重载成功 |

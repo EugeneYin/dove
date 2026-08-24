@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "baselineAppVersion": "2.1.0",
+  "baselineAppVersion": "2.1.1",
   "suite": {
     "id": "pwa-offline",
     "runner": "playwright",
@@ -77,6 +77,18 @@
         "name": "离线打开 v2.1 诊断面板",
         "introducedIn": "2.1.0",
         "protects": "离线故障现场仍能打开诊断面板并显示当前版本与运行时信息"
+      },
+      {
+        "id": "PWA-013",
+        "name": "顶部三区与抽屉进度迁移",
+        "introducedIn": "2.1.1",
+        "protects": "文件、翻页、设置保持三区布局，设置抽屉纵向排列且安装进度只显示在当前按钮"
+      },
+      {
+        "id": "PWA-014",
+        "name": "最近打开限制为日期倒序五项",
+        "introducedIn": "2.1.1",
+        "protects": "文件抽屉只显示最近打开的五个文件名，且最新记录排在最前"
       }
     ]
   }

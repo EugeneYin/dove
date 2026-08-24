@@ -3,7 +3,7 @@ name: PWA E2E
 on:
   pull_request:
   push:
-    branches: [master, main]
+    branches: [master, main, "feat/**"]
   schedule:
     - cron: "0 3 * * *"
   workflow_dispatch:
@@ -11,7 +11,7 @@ on:
       real_devices:
         description: Run BrowserStack real-device tests
         required: false
-        default: true
+        default: false
         type: boolean
 
 concurrency:
@@ -26,6 +26,8 @@ jobs:
     name: PWA regression baseline
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    outputs:
+      app_version: ${{ steps.version.outputs.app_version }}
 
     steps:
       - uses: actions/checkout@v7
@@ -187,6 +189,9 @@ jobs:
       - name: Record preview URL
         if: steps.deploy.outputs.deployment-url != ''
         run: |
+          echo "- Application: v${{ needs.test.outputs.app_version }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Branch: ${{ github.ref_name }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Commit: ${{ github.sha }}" >> "$GITHUB_STEP_SUMMARY"
           echo "- Cloudflare Preview: ${{ steps.deploy.outputs.deployment-url }}" >> "$GITHUB_STEP_SUMMARY"
 
   device-smoke:
@@ -283,7 +288,7 @@ jobs:
           BASE_URL: ${{ needs.deploy.outputs.url }}
           BROWSERSTACK_USERNAME: ${{ secrets.BROWSERSTACK_USERNAME }}
           BROWSERSTACK_ACCESS_KEY: ${{ secrets.BROWSERSTACK_ACCESS_KEY }}
-          BROWSERSTACK_BUILD_ID: dove-v2.1-${{ github.run_id }}-${{ github.run_attempt }}
+          BROWSERSTACK_BUILD_ID: dove-v${{ needs.test.outputs.app_version }}-${{ github.run_id }}-${{ github.run_attempt }}
         run: |
           curl --fail --location --retry 12 --retry-all-errors --retry-delay 5 "$BASE_URL/manifest.webmanifest" --output /dev/null
           pnpm run e2e:browserstack
@@ -292,7 +297,7 @@ jobs:
         if: always() && steps.browserstack.outputs.enabled == 'true'
         uses: actions/upload-artifact@v6
         with:
-          name: dove-browserstack-v2.1-${{ github.sha }}
+          name: dove-browserstack-v${{ needs.test.outputs.app_version }}-${{ github.sha }}
           path: |
             playwright-browserstack-report/
             test-results/browserstack-*

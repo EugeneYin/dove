@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "baselineAppVersion": "2.1.0",
+  "baselineAppVersion": "2.1.1",
   "suite": {
     "id": "pwa-devices",
     "runner": "playwright",
@@ -41,6 +41,12 @@
         "name": "真机断网后离线重载",
         "introducedIn": "2.1.0",
         "protects": "真机预缓存后切断设备网络，仍能重载、恢复文档并离线查词"
+      },
+      {
+        "id": "DEVICE-007",
+        "name": "顶部菜单抽屉兼容性",
+        "introducedIn": "2.1.1",
+        "protects": "桌面与触屏视口都能打开互斥的文件和设置抽屉"
       }
     ]
   }
