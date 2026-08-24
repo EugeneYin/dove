@@ -196,7 +196,7 @@ iOS / iPadOS 没有对应接口，只能在 Safari 里「分享 → 添加到主
 | [docs/playbook/pitfalls.md](docs/playbook/pitfalls.md) | 已踩过的坑与根因，改动前务必一读 |
 | [docs/playbook/testing.md](docs/playbook/testing.md) | 测试策略与全部用例清单 |
 | [docs/playbook/pwa-e2e-playbook.md](docs/playbook/pwa-e2e-playbook.md) | Playwright PWA E2E 环境、版本回溯与新增用例流程 |
-| [docs/agents/README.md](docs/agents/README.md) | AllInOne / Agent Teams 模式选择、角色索引与模型能力路由 |
+| [docs/agents/README.md](docs/agents/README.md) | AllInOne / Agent Teams 模式选择、角色索引与模型无关原则 |
 | [docs/agents/team-protocol.md](docs/agents/team-protocol.md) | 团队启动门禁、协作、文件所有权和交接协议 |
 | [docs/agents/pmo.md](docs/agents/pmo.md) | PMO 主 Agent 的用户沟通与团队编排职责 |
 | [docs/agents/pm.md](docs/agents/pm.md) | PM Agent 的需求澄清、Spec 与验收标准职责 |
