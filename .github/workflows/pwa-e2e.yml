@@ -49,7 +49,8 @@ jobs:
       - name: Read application version
         id: version
         run: |
-          echo "app_version=$(node -p 'require(\"./package.json\").version')" >> "$GITHUB_OUTPUT"
+          app_version=$(node -p "require('./package.json').version")
+          echo "app_version=$app_version" >> "$GITHUB_OUTPUT"
 
       - name: Run unit, catalog, build and PWA E2E tests
         run: pnpm run test:ci
@@ -64,7 +65,7 @@ jobs:
 
       - name: Archive versioned E2E evidence
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: dove-pwa-e2e-v${{ steps.version.outputs.app_version }}-${{ github.sha }}
           path: |
@@ -186,7 +187,7 @@ jobs:
 
       - name: Archive device smoke evidence
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: dove-device-smoke-${{ github.sha }}
           path: |
@@ -249,7 +250,7 @@ jobs:
 
       - name: Archive real-device evidence
         if: always() && steps.browserstack.outputs.enabled == 'true'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: dove-browserstack-v2.1-${{ github.sha }}
           path: |

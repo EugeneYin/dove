@@ -109,6 +109,7 @@ test.describe("PWA 离线完整链路", () => {
     await page.waitForFunction(() => navigator.serviceWorker.controller !== null, null, {
       timeout: 60_000,
     });
+    console.log("[pwa-e2e] Service Worker 已接管");
 
     const prefetch = await page.evaluate(
       () =>
@@ -127,6 +128,7 @@ test.describe("PWA 离线完整链路", () => {
           navigator.serviceWorker.controller?.postMessage({ type: "prefetch" });
         }),
     );
+    console.log(`[pwa-e2e] 预缓存完成：${prefetch.done} 成功，${prefetch.failed} 失败`);
 
     await test.step("PWA-001 预缓存离线资源", async () => {
       expect.soft(prefetch.failed, prefetch.failures.join("\n")).toBe(0);
@@ -155,9 +157,11 @@ test.describe("PWA 离线完整链路", () => {
 
     await page.locator("#file").setInputFiles(SAMPLE_SCANNED);
     await waitForTextLayer(page, 5, 120_000);
+    console.log("[pwa-e2e] 联网 OCR 准备完成");
 
     await stopServer();
     await waitUntilUnreachable(baseURL);
+    console.log("[pwa-e2e] Preview 已关闭，进入真实离线阶段");
 
     await test.step("PWA-003 服务器关闭后仍能冷启动", async () => {
       await page.reload({ waitUntil: "domcontentloaded", timeout: 30_000 });
@@ -224,6 +228,7 @@ test.describe("PWA 离线完整链路", () => {
       await page.locator("#file").setInputFiles(SAMPLE_SCANNED);
       await waitForTextLayer(page, 5, 180_000);
       ocrWords = await page.locator("#text-layer span").count();
+      console.log(`[pwa-e2e] 离线 OCR 完成：${ocrWords} 个文本项`);
       expect.soft(ocrWords).toBeGreaterThan(5);
     });
 

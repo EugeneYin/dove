@@ -18,7 +18,7 @@ export default defineConfig({
   outputDir: "test-results/artifacts",
   fullyParallel: false,
   workers: 1,
-  retries: process.env.CI ? 1 : 0,
+  retries: 0,
   timeout: 12 * 60 * 1000,
   expect: { timeout: 15_000 },
   forbidOnly: Boolean(process.env.CI),
