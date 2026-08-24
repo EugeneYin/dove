@@ -20,8 +20,8 @@ GitHub PR / default-branch push / schedule / manual
 - `playwright.config.ts`：桌面完整离线基线；
 - `playwright.devices.config.ts`：四端模拟；
 - `playwright.browserstack.config.ts`、`e2e/browserstack-fixture.ts`：真机连接；
-- `docs/pwa-e2e-playbook.md`：架构、限制和使用手册；
-- `qa.md`：测试执行和结论标准。
+- `docs/playbook/pwa-e2e-playbook.md`：架构、限制和使用手册；
+- `docs/agents/qa.md`：测试执行和结论标准。
 
 ## 2. 权限与安全边界
 

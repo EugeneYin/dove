@@ -41,7 +41,8 @@ node -p "require('./package.json').version"
 git log -1 --format='%cI %s'
 ```
 
-先阅读本次需求、最近提交、`docs/testing.md`、`docs/pwa-e2e-playbook.md` 和相关代码。
+先阅读本次需求、最近提交、`docs/playbook/testing.md`、
+`docs/playbook/pwa-e2e-playbook.md` 和相关代码。
 把需求拆成：已有稳定用例、新增自动化候选、只能人工验收的项目。
 
 ### 3.2 安装与静态检查
@@ -150,4 +151,5 @@ iOS、iPadOS、Android 各至少一次：安装到主屏幕、断网冷启动、
 - 完整离线基线必须关闭本地源站，不能只依赖浏览器网络模拟；
 - 修改布局/手势时跑四端模拟；修改 SW/Safari/触控时补 BrowserStack 和人工安装；
 - 报告必须携带应用版本、Git SHA、分支、用例目录和失败附件；
-- 任何测试能力变更都同步更新 `docs/testing.md` 和 `docs/pwa-e2e-playbook.md`。
+- 任何测试能力变更都同步更新 `docs/playbook/testing.md` 和
+  `docs/playbook/pwa-e2e-playbook.md`。

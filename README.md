@@ -116,7 +116,7 @@ flowchart TB
 
 设计上最关键的一点：**OCR 不另起一套取词逻辑**。识别结果被合成为与 PDF.js
 结构相同的透明文本层，因此取词层对上游是谁完全无感，扫描件与普通 PDF 共用同一条
-代码路径。详见 [docs/architecture.md](docs/architecture.md)。
+代码路径。详见 [docs/playbook/architecture.md](docs/playbook/architecture.md)。
 
 ## 快速开始
 
@@ -141,7 +141,7 @@ npm run sample   # 重新生成测试样张
 Service Worker 只在生产构建中启用，`npm run dev` 下不注册——否则改一行代码就要跟缓存
 搏斗。要验证离线行为请用 `npm run e2e:pwa` 或 `npm run build && npm run preview`。
 Cloudflare Pages + BrowserStack 真机环境的配置、运行命令与限制见
-[PWA E2E Playbook](docs/pwa-e2e-playbook.md)。
+[PWA E2E Playbook](docs/playbook/pwa-e2e-playbook.md)。
 
 ### 在手机 / Pad 上装起来
 
@@ -191,19 +191,20 @@ iOS / iPadOS 没有对应接口，只能在 Safari 里「分享 → 添加到主
 
 | 文档 | 内容 |
 |---|---|
-| [docs/architecture.md](docs/architecture.md) | 模块职责、数据流、三条关键路径的实现细节 |
-| [docs/decisions.md](docs/decisions.md) | 技术选型及其理由，含被否决的方案 |
-| [docs/pitfalls.md](docs/pitfalls.md) | 已踩过的坑与根因，改动前务必一读 |
-| [docs/testing.md](docs/testing.md) | 测试策略与全部用例清单 |
-| [docs/pwa-e2e-playbook.md](docs/pwa-e2e-playbook.md) | Playwright PWA E2E 环境、版本回溯与新增用例流程 |
-| [qa.md](qa.md) | 独立 QA Agent 的回归流程、证据标准与报告模板 |
-| [ops.md](ops.md) | 独立 Ops Agent 的环境启用、排障、维护与事故模板 |
+| [docs/playbook/architecture.md](docs/playbook/architecture.md) | 模块职责、数据流、三条关键路径的实现细节 |
+| [docs/playbook/decisions.md](docs/playbook/decisions.md) | 技术选型及其理由，含被否决的方案 |
+| [docs/playbook/pitfalls.md](docs/playbook/pitfalls.md) | 已踩过的坑与根因，改动前务必一读 |
+| [docs/playbook/testing.md](docs/playbook/testing.md) | 测试策略与全部用例清单 |
+| [docs/playbook/pwa-e2e-playbook.md](docs/playbook/pwa-e2e-playbook.md) | Playwright PWA E2E 环境、版本回溯与新增用例流程 |
+| [docs/agents/qa.md](docs/agents/qa.md) | 独立 QA Agent 的回归流程、证据标准与报告模板 |
+| [docs/agents/ops.md](docs/agents/ops.md) | 独立 Ops Agent 的环境启用、排障、维护与事故模板 |
+| [docs/spec/README.md](docs/spec/README.md) | 每次迭代的需求与技术 Spec 入口及命名约定 |
 
 ## 技术栈
 
-Vite + TypeScript，不使用前端框架（[理由](docs/decisions.md#不使用前端框架)）。
+Vite + TypeScript，不使用前端框架（[理由](docs/playbook/decisions.md#不使用前端框架)）。
 运行时依赖只有 `pdfjs-dist` 与 `tesseract.js`，全部资源自托管，断网可用。
-Service Worker 为手写，未引入 Workbox 或 vite-plugin-pwa（[理由](docs/decisions.md#手写-service-worker)）。
+Service Worker 为手写，未引入 Workbox 或 vite-plugin-pwa（[理由](docs/playbook/decisions.md#手写-service-worker)）。
 
 ## 许可与数据来源
 

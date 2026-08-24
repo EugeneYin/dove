@@ -35,7 +35,7 @@ if (!existsSync("dist/index.html")) {
 
 // ---- 进程清理 ----
 // 认端口不认进程树：vite 是 npx 起的，真正监听的是它的孙子进程，
-// 脚本异常退出时那个进程会挂到 init 名下继续占着端口（详见 docs/pitfalls.md）。
+// 脚本异常退出时那个进程会挂到 init 名下继续占着端口（详见 docs/playbook/pitfalls.md）。
 
 function killPort(port) {
   try {
