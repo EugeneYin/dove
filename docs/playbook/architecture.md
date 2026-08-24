@@ -14,18 +14,18 @@ PDF.js 在 canvas 之上会额外铺一层透明的 `<span>` 文本层，每段�
 
 ## 模块
 
-| 文件 | 行数 | 职责 |
-|---|---|---|
-| `src/main.ts` | 592 | 渲染调度、手势、词卡 UI、状态提示、安装与离线接线 |
-| `src/diag.ts` | 353 | 自诊断面板：环境、能力自检、缓存明细、日志（v2.1） |
-| `src/sw.js` | 267 | Service Worker：预缓存、请求拦截、分享目标、缓存明细上报 |
-| `src/library.ts` | 149 | 最近文档与阅读位置（IndexedDB） |
-| `src/word.ts` | 124 | 屏幕坐标 → 单词，含连字符拼接与所有格剥离 |
-| `src/dict.ts` | 87 | 词典加载与查询，含词形还原 |
-| `src/ocr.ts` | 139 | Tesseract 识别，并把结果合成为文本层 |
-| `src/speech.ts` | 107 | 音色挑选与朗读 |
-| `src/polyfills.ts` | 48 | ReadableStream 异步迭代（WebKit 需要） |
-| `src/pdf-worker.ts` | 8 | PDF.js worker 入口，先打补丁再加载 |
+| 文件 | 职责 |
+|---|---|
+| `src/main.ts` | 渲染调度、手势、词卡 UI、状态提示、安装与离线接线 |
+| `src/diag.ts` | 自诊断面板：环境、能力自检、缓存明细、日志（v2.1） |
+| `src/sw.js` | Service Worker：预缓存、请求拦截、分享目标、缓存明细上报 |
+| `src/library.ts` | 最近文档与阅读位置（IndexedDB） |
+| `src/word.ts` | 屏幕坐标 → 单词，含连字符拼接与所有格剥离 |
+| `src/dict.ts` | 词典加载与查询，含词形还原 |
+| `src/ocr.ts` | Tesseract 识别，并把结果合成为文本层 |
+| `src/speech.ts` | 音色挑选与朗读 |
+| `src/polyfills.ts` | ReadableStream 异步迭代（WebKit 需要） |
+| `src/pdf-worker.ts` | PDF.js worker 入口，先打补丁再加载 |
 
 `src/sw.js` 是全项目唯一的 JS 文件。TypeScript 7 不再提供 `transpileModule` 这类 JS API，
 为 6KB 代码引入打包器不划算；它改用 JSDoc 标注类型，由 `tsconfig.sw.json` 以 `checkJs`

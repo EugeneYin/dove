@@ -6,7 +6,7 @@
  * 整个用例就变成了自欺。服务器进程没了是任何一方都绕不过去的事实。
  *
  * 用法: node scripts/e2e-pwa.mjs
- * 会自行 npm run build 并起 vite preview。
+ * 会自行 pnpm run build 并起 vite preview。
  */
 import { execFileSync, spawn } from "node:child_process";
 import { mkdtemp } from "node:fs/promises";

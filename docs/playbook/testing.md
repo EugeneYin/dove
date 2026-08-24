@@ -4,12 +4,12 @@
 
 | 层次 | 命令 | 覆盖 | 依赖 |
 |---|---|---|---|
-| 单元测试 | `npm test` | 纯逻辑：分词、归一化、词典查询 | 无（`node --test` 内置） |
-| 端到端 | `npm run e2e` | 真实事件、渲染、对齐、OCR、兼容性 | 本机 Chrome + `npm run dev` |
+| 单元测试 | `pnpm test` | 纯逻辑：分词、归一化、词典查询 | 无（`node --test` 内置） |
+| 端到端 | `pnpm run e2e` | 真实事件、渲染、对齐、OCR、兼容性 | 本机 Chrome + `pnpm run dev` |
 | 离线端到端 | `pnpm run e2e:pwa` | 安装、预缓存、关闭服务器后的全部功能 | Playwright Chromium（自行构建并起 preview） |
 | 设备模拟 | `pnpm run e2e:devices` | PC / iPhone / iPad / Android Pad 的布局、手势和在线 smoke | Playwright Chromium + WebKit |
 | 云端真机 | `pnpm run e2e:browserstack` | iPhone / iPad / Android Pad 的真实浏览器与断网重载 | Cloudflare HTTPS URL + BrowserStack 凭据 |
-| 类型检查 | `npm run typecheck` | 接口契约（含 `sw.js` 的 JSDoc） | 无 |
+| 类型检查 | `pnpm run typecheck` | 接口契约（含 `sw.js` 的 JSDoc） | 无 |
 
 普通 e2e 仍用 CDP 直接驱动本机 Chrome；PWA 离线套件已迁入 Playwright，以便在
 GitHub Actions 自动运行、生成版本化报告并保存失败 Trace。旧离线 CDP 脚本保留为
@@ -37,7 +37,7 @@ target 里，未必受同一份限制——用它来测离线，等于让被测�
 
 ## 测试样张
 
-`npm run sample` 生成三份，正文是按用例需要设计的，改动会影响 e2e：
+`pnpm run sample` 生成三份，正文是按用例需要设计的，改动会影响 e2e：
 
 | 文件 | 用途 |
 |---|---|

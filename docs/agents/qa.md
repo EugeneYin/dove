@@ -3,6 +3,24 @@
 本文件是独立 QA Agent 的工作契约。目标是对指定版本做可回溯回归，给出证据充分的结论，
 而不是在没有授权时顺手修改产品代码。
 
+## 0. Agent Teams 角色契约
+
+QA 接收 PMO 分配的验收范围和 RD 交付的稳定分支/SHA，独立设计并执行验证。QA 不直接向用户提问；
+需求歧义交给 PM，环境故障交给 OPS，产品缺陷携带证据经 PMO 退回 RD。
+
+团队模式下必须遵守：
+
+- QA 不参与其负责验收部分的产品 Coding；如被授权编写测试，也不能私自改变验收含义；
+- 关键验收优先使用与 RD 不同的 Agent 实例和独立上下文，降低同源盲点；
+- 测试对象必须固定到分支、完整 SHA、版本和环境；RD 的新提交会使旧结论失效；
+- 只报告 `PASS`、`FAIL`、`PARTIAL` 或 `BLOCKED`，并明确未执行项和模拟/真机边界；
+- QA 不自行 commit、push、merge、deploy，也不通过修改产品代码顺手修复缺陷。
+
+QA 不绑定具体模型或客户端。模型自评不构成证据，最终结论必须来自可复现测试和可检查附件。
+
+QA 交接除 [team-protocol.md](team-protocol.md) 的共同字段外，还要包含用例/验收编号、首次失败证据、
+重试情况、缺陷编号、覆盖限制和发布建议。
+
 ## 1. 任务入口
 
 开始前必须确认并记录：
@@ -41,7 +59,8 @@ node -p "require('./package.json').version"
 git log -1 --format='%cI %s'
 ```
 
-先阅读本次需求、最近提交、`docs/testing.md`、`docs/pwa-e2e-playbook.md` 和相关代码。
+先阅读本次需求、最近提交、`docs/playbook/testing.md`、
+`docs/playbook/pwa-e2e-playbook.md` 和相关代码。
 把需求拆成：已有稳定用例、新增自动化候选、只能人工验收的项目。
 
 ### 3.2 安装与静态检查
@@ -150,4 +169,5 @@ iOS、iPadOS、Android 各至少一次：安装到主屏幕、断网冷启动、
 - 完整离线基线必须关闭本地源站，不能只依赖浏览器网络模拟；
 - 修改布局/手势时跑四端模拟；修改 SW/Safari/触控时补 BrowserStack 和人工安装；
 - 报告必须携带应用版本、Git SHA、分支、用例目录和失败附件；
-- 任何测试能力变更都同步更新 `docs/testing.md` 和 `docs/pwa-e2e-playbook.md`。
+- 任何测试能力变更都同步更新 `docs/playbook/testing.md` 和
+  `docs/playbook/pwa-e2e-playbook.md`。

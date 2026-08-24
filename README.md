@@ -116,45 +116,45 @@ flowchart TB
 
 设计上最关键的一点：**OCR 不另起一套取词逻辑**。识别结果被合成为与 PDF.js
 结构相同的透明文本层，因此取词层对上游是谁完全无感，扫描件与普通 PDF 共用同一条
-代码路径。详见 [docs/architecture.md](docs/architecture.md)。
+代码路径。详见 [docs/playbook/architecture.md](docs/playbook/architecture.md)。
 
 ## 快速开始
 
 ```bash
 pnpm install
-npm run dict     # 首次必须执行：生成离线词典（会下载约 63MB 的 ECDICT 源数据）
-npm run dev
+pnpm run dict     # 首次必须执行：生成离线词典（会下载约 63MB 的 ECDICT 源数据）
+pnpm run dev
 ```
 
-`npm run dev` 会打印局域网地址，平板连同一 Wi-Fi 即可真机调试。
+`pnpm run dev` 会打印局域网地址，平板连同一 Wi-Fi 即可真机调试。
 
 ```bash
-npm test         # 单元测试（node --test，无额外依赖）
-npm run e2e      # 端到端测试，需先 npm run dev
+pnpm test         # 单元测试（node --test，无额外依赖）
+pnpm run e2e      # 端到端测试，需先 pnpm run dev
 pnpm run e2e:pwa # Playwright PWA 离线端到端，自行构建、关闭 preview 并生成报告
 pnpm run e2e:devices # PC / iPhone / iPad / Android Pad 的本地设备模拟矩阵
 pnpm run test:ci # 与 GitHub Actions 相同的完整检查
-npm run build    # 生产构建到 dist/
-npm run sample   # 重新生成测试样张
+pnpm run build    # 生产构建到 dist/
+pnpm run sample   # 重新生成测试样张
 ```
 
-Service Worker 只在生产构建中启用，`npm run dev` 下不注册——否则改一行代码就要跟缓存
-搏斗。要验证离线行为请用 `npm run e2e:pwa` 或 `npm run build && npm run preview`。
+Service Worker 只在生产构建中启用，`pnpm run dev` 下不注册——否则改一行代码就要跟缓存
+搏斗。要验证离线行为请用 `pnpm run e2e:pwa` 或 `pnpm run build && pnpm run preview`。
 Cloudflare Pages + BrowserStack 真机环境的配置、运行命令与限制见
-[PWA E2E Playbook](docs/pwa-e2e-playbook.md)。
+[PWA E2E Playbook](docs/playbook/pwa-e2e-playbook.md)。
 
 ### 在手机 / Pad 上装起来
 
 **Service Worker 只在安全上下文里注册**，`http://192.168.x.x` 不算（只有 `localhost` 与
-HTTPS 算）。所以 `npm run dev` 打印的那个局域网地址测取词可以，测安装不行——
+HTTPS 算）。所以 `pnpm run dev` 打印的那个局域网地址测取词可以，测安装不行——
 `beforeinstallprompt` 根本不会触发，安装按钮点下去只会告诉你差一个 https。
 
 ```bash
-npm run serve         # 局域网 https，mkcert 签本机证书
-npm run serve:tunnel  # cloudflared 公网隧道，设备端零配置
+pnpm run serve         # 局域网 https，mkcert 签本机证书
+pnpm run serve:tunnel  # cloudflared 公网隧道，设备端零配置
 ```
 
-`npm run serve` 会起两个服务：
+`pnpm run serve` 会起两个服务：
 
 | 端口 | 协议 | 用途 |
 |---|---|---|
@@ -191,19 +191,26 @@ iOS / iPadOS 没有对应接口，只能在 Safari 里「分享 → 添加到主
 
 | 文档 | 内容 |
 |---|---|
-| [docs/architecture.md](docs/architecture.md) | 模块职责、数据流、三条关键路径的实现细节 |
-| [docs/decisions.md](docs/decisions.md) | 技术选型及其理由，含被否决的方案 |
-| [docs/pitfalls.md](docs/pitfalls.md) | 已踩过的坑与根因，改动前务必一读 |
-| [docs/testing.md](docs/testing.md) | 测试策略与全部用例清单 |
-| [docs/pwa-e2e-playbook.md](docs/pwa-e2e-playbook.md) | Playwright PWA E2E 环境、版本回溯与新增用例流程 |
-| [qa.md](qa.md) | 独立 QA Agent 的回归流程、证据标准与报告模板 |
-| [ops.md](ops.md) | 独立 Ops Agent 的环境启用、排障、维护与事故模板 |
+| [docs/playbook/architecture.md](docs/playbook/architecture.md) | 模块职责、数据流、三条关键路径的实现细节 |
+| [docs/playbook/decisions.md](docs/playbook/decisions.md) | 技术选型及其理由，含被否决的方案 |
+| [docs/playbook/pitfalls.md](docs/playbook/pitfalls.md) | 已踩过的坑与根因，改动前务必一读 |
+| [docs/playbook/testing.md](docs/playbook/testing.md) | 测试策略与全部用例清单 |
+| [docs/playbook/pwa-e2e-playbook.md](docs/playbook/pwa-e2e-playbook.md) | Playwright PWA E2E 环境、版本回溯与新增用例流程 |
+| [docs/agents/README.md](docs/agents/README.md) | AllInOne / Agent Teams 模式选择、角色索引与模型无关原则 |
+| [docs/agents/team-protocol.md](docs/agents/team-protocol.md) | 团队启动门禁、协作、文件所有权和交接协议 |
+| [docs/agents/pmo.md](docs/agents/pmo.md) | PMO 主 Agent 的用户沟通与团队编排职责 |
+| [docs/agents/pm.md](docs/agents/pm.md) | PM Agent 的需求澄清、Spec 与验收标准职责 |
+| [docs/agents/rd.md](docs/agents/rd.md) | RD Agent 的技术设计、Coding、调试与单元测试职责 |
+| [docs/agents/qa.md](docs/agents/qa.md) | 独立 QA Agent 的回归流程、证据标准与报告模板 |
+| [docs/agents/ops.md](docs/agents/ops.md) | 独立 Ops Agent 的环境启用、排障、维护与事故模板 |
+| [docs/agents/all-in-one.md](docs/agents/all-in-one.md) | 简单需求的单 Agent 顺序工作与升级规则 |
+| [docs/spec/README.md](docs/spec/README.md) | 每次迭代的需求与技术 Spec 入口及命名约定 |
 
 ## 技术栈
 
-Vite + TypeScript，不使用前端框架（[理由](docs/decisions.md#不使用前端框架)）。
+Vite + TypeScript，不使用前端框架（[理由](docs/playbook/decisions.md#不使用前端框架)）。
 运行时依赖只有 `pdfjs-dist` 与 `tesseract.js`，全部资源自托管，断网可用。
-Service Worker 为手写，未引入 Workbox 或 vite-plugin-pwa（[理由](docs/decisions.md#手写-service-worker)）。
+Service Worker 为手写，未引入 Workbox 或 vite-plugin-pwa（[理由](docs/playbook/decisions.md#手写-service-worker)）。
 
 ## 许可与数据来源
 

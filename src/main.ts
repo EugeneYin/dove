@@ -278,7 +278,7 @@ async function start() {
 
 /**
  * PWA 的「用 Dove 打开」入口。系统直接把文件句柄递进来，
- * 这正好补上了当初选网页方案时让掉的那点便利（见 docs/decisions.md）。
+ * 这正好补上了当初选网页方案时让掉的那点便利（见 docs/playbook/decisions.md）。
  * iOS 不支持，那里仍然走「打开 PDF」按钮。
  */
 interface LaunchParams {

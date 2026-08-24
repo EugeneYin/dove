@@ -1,6 +1,6 @@
 /**
  * 端到端验证取词交互：用 CDP 驱动无头 Chrome，零依赖。
- * 需要先 `npm run dev`，用例依赖 public/sample.pdf 的内容。
+ * 需要先 `pnpm run dev`，用例依赖 public/sample.pdf 的内容。
  *
  * 用法: node scripts/e2e.mjs [url]
  */

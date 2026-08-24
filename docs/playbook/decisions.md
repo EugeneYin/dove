@@ -62,21 +62,24 @@ Android SDK。代价是打开 PDF 的入口不如原生顺手（无法从文件�
 ## 自托管全部运行时资源
 
 Tesseract.js 默认从 CDN 拉取核心与语言包。改为自托管的理由：断网可用是产品约束，
-且 CDN 在国内不稳定。代价是 `dist/` 体积较大（24MB，含三个核心变体），但运行时只下载其中一个
-核心变体。
+且 CDN 在国内不稳定。代价是 `dist/` 会包含三个 OCR 核心变体、体积较大，但运行时只下载其中一个
+核心变体。具体体积由当前依赖和构建产物决定，不在决策文档中固定数值。
 
-## e2e 用 CDP 而非 Playwright
+## E2E 分层使用 CDP 与 Playwright
 
-Node 24 自带 WebSocket，直接用 Chrome DevTools Protocol 驱动本机 Chrome 即可，
-零新增依赖，也不需要下载额外的浏览器二进制。
+原有交互回归由 `scripts/e2e.mjs` 使用 Chrome DevTools Protocol 驱动本机 Chrome；这部分建立时
+可以直接使用 Node WebSocket，无须额外测试框架。完整 PWA 离线基线、设备模拟和 BrowserStack
+真机链路则使用 Playwright，以获得浏览器进程控制、多项目配置、报告、Trace 和 CI 集成。
 
-这个选择很快证明了价值：第一次运行就抓到了词典因 gzip 双重解压而完全加载不了的
-bug——那是单元测试和类型检查都覆盖不到的问题。
+两层互相补充：CDP 脚本保留快速交互回归，Playwright 承担需要严格生命周期和可回溯证据的场景。
+早期 CDP 回归第一次运行就抓到了词典因 gzip 双重解压而完全加载不了的问题——那是单元测试和
+类型检查都覆盖不到的。
 
 ## 手写 Service Worker
 
 没有用 `vite-plugin-pwa` / Workbox。需求就三件事：预缓存一份清单、cache-first、
-拦一个分享 POST。手写 224 行，配一个 50 行的构建插件，全部逻辑都看得见。
+拦一个分享 POST。采用手写 Service Worker 和小型构建插件，全部逻辑都看得见；具体行数不作为
+架构约束。
 
 Workbox 会带来一层运行时抽象和几百 KB 的构建依赖，而它擅长的那些场景——多种缓存策略
 共存、按路由配过期、后台同步——这里一个都用不上。分层预缓存和「只缓存一个 OCR 核心变体」
@@ -92,7 +95,7 @@ Workbox 会带来一层运行时抽象和几百 KB 的构建依赖，而它擅�
 `sw.ts` 转成 JS，要么新增 esbuild 依赖，要么在构建插件里 spawn 一个编译器。
 
 为一个 6KB、零 import 的文件做这些不划算。改用 JSDoc 标注类型 + `checkJs`，
-类型检查一分不少（`npm run typecheck` 同时跑主配置与 `tsconfig.sw.json`），
+类型检查一分不少（`pnpm run typecheck` 同时跑主配置与 `tsconfig.sw.json`），
 构建时原样输出，只在顶部拼上注入的常量。
 
 ## 预缓存分成 SHELL 与 EXTRAS 两批

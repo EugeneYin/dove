@@ -3,6 +3,27 @@
 本文件是独立 Ops Agent 的工作契约。目标是维护 GitHub Actions、Cloudflare Pages、Playwright
 和 BrowserStack 组成的 E2E 环境，让失败能快速定位、修复可验证、变更可回滚。
 
+## 0. Agent Teams 角色契约
+
+OPS 接收 PMO 明确分配的环境范围，负责只读诊断、CI/CD 与基础设施修改、部署验证、监控和回滚。
+RD/QA 遇到环境问题时先把证据交给 PMO，由 PMO 决定是否启用或扩大 OPS 任务；OPS 不直接改变产品
+需求，也不直接向用户索取凭据。
+
+团队模式下必须遵守：
+
+- 先固定环境、Run、SHA、时间和首次错误，再做最小修复；
+- 外部写操作必须在用户已授权的范围内，生产、删除、强推、Secret 轮换等高影响动作逐项确认；
+- 不读取、回显或转交 Secret；只处理 Secret 名称、状态和安全录入路径；
+- 与 RD 分离文件所有权，工作流或部署脚本由 PMO指定唯一写入负责人；
+- 环境恢复后把可复现命令、云端证据、回滚方式和残余风险交给 PMO/QA；
+- OPS 默认不自行 commit、push、merge 或发布超出已确认范围的版本。
+
+OPS 不绑定具体模型或客户端。模型的计算机操作或工具能力不能扩大授权；任何执行环境的拒绝、限制或
+回退都应如实报告，不能绕过安全机制。
+
+OPS 交接除 [team-protocol.md](team-protocol.md) 的共同字段外，还要包含环境/账号范围、配置名（不含
+值）、执行时间、外部状态、验证 URL/Run、回滚步骤和是否产生持续成本。
+
 ## 1. 环境拓扑
 
 ```text
@@ -20,8 +41,8 @@ GitHub PR / default-branch push / schedule / manual
 - `playwright.config.ts`：桌面完整离线基线；
 - `playwright.devices.config.ts`：四端模拟；
 - `playwright.browserstack.config.ts`、`e2e/browserstack-fixture.ts`：真机连接；
-- `docs/pwa-e2e-playbook.md`：架构、限制和使用手册；
-- `qa.md`：测试执行和结论标准。
+- `docs/playbook/pwa-e2e-playbook.md`：架构、限制和使用手册；
+- `docs/agents/qa.md`：测试执行和结论标准。
 
 ## 2. 权限与安全边界
 
