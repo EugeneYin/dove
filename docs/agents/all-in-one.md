@@ -3,6 +3,9 @@
 AllInOne 是默认模式：一个 Agent 对用户负责，在同一上下文中完成必要的需求、实现、测试和环境步骤，
 不创建子 Agent。
 
+由于不存在多 Agent 交接，Agent Teams 的 Message ID、ACK 和 Team Log 通信协议不适用于 AllInOne；
+AllInOne 仍需记录 Spec、Git 和验证证据，但不伪造角色间消息或回执。
+
 ## 1. 适用范围
 
 - 目标明确，验收标准容易确认；
