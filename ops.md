@@ -52,13 +52,17 @@ gh auth login --hostname github.com --git-protocol ssh --web --scopes repo,workf
 
 ### 3.2 Cloudflare Pages
 
-登录并创建 Direct Upload 项目：
+本机登录后也可以手工创建 Direct Upload 项目：
 
 ```bash
 pnpm dlx wrangler@4 login
 pnpm dlx wrangler@4 pages project create dove-e2e --production-branch master
 pnpm dlx wrangler@4 pages project list
 ```
+
+GitHub Actions 在凭据存在时会检查项目，并自动创建缺失的 `dove-e2e`；手工创建不是
+CI 首次启用的前置条件。CI 构建前还会执行 `pnpm run dict`，因为生成的
+`public/dict.json.gz` 不进入 Git。
 
 在 Cloudflare 创建最小权限 API Token：仅目标 Account，权限为 Cloudflare Pages Edit。
 然后在 GitHub 仓库设置：

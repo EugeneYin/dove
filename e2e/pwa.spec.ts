@@ -51,6 +51,19 @@ async function waitForTextLayer(page: Page, minimum = 0, timeout = 30_000) {
   );
 }
 
+async function waitForDictionary(page: Page, timeout = 60_000) {
+  await page.waitForFunction(
+    () => ["ready", "failed"].includes(document.body.dataset.dict ?? ""),
+    null,
+    { timeout },
+  );
+  const state = await page.locator("body").getAttribute("data-dict");
+  if (state !== "ready") {
+    const detail = await page.locator(".dict-status").textContent();
+    throw new Error(detail?.trim() || `词典加载失败（状态：${state ?? "unknown"}）`);
+  }
+}
+
 async function lookUp(page: Page, word: string) {
   await page.locator("#popup").evaluate((node) => node.setAttribute("hidden", ""));
   const position = await page.evaluate((target) => {
@@ -149,7 +162,7 @@ test.describe("PWA 离线完整链路", () => {
     // 联网时准备两本最近文档和阅读位置，供真正断开服务器后的步骤验证。
     await page.locator("#file").setInputFiles(SAMPLE_PAGES);
     await waitForTextLayer(page);
-    await page.waitForFunction(() => document.body.dataset.dict === "ready");
+    await waitForDictionary(page);
     await page.keyboard.press("ArrowRight");
     await expect(page.locator("#pager")).toHaveText("2 / 3");
     await page.keyboard.press("ArrowRight");
@@ -170,9 +183,7 @@ test.describe("PWA 离线完整链路", () => {
     });
 
     await test.step("PWA-004 离线加载词典", async () => {
-      await page.waitForFunction(() => document.body.dataset.dict === "ready", null, {
-        timeout: 60_000,
-      });
+      await waitForDictionary(page);
       expect.soft(await page.locator("body").getAttribute("data-dict")).toBe("ready");
     });
 

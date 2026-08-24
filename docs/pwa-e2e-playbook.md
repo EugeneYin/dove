@@ -184,15 +184,16 @@ pnpm run e2e:browserstack
 
 ### Cloudflare
 
-1. 在 Cloudflare Dashboard 创建 Direct Upload 类型的 Pages 项目，默认名为 `dove-e2e`。
-2. 创建只允许目标 Account 的 Cloudflare Pages Edit API Token。
-3. 在 GitHub Actions Secrets 配置：
+1. 创建只允许目标 Account 的 Cloudflare Pages Edit API Token。
+2. 在 GitHub Actions Secrets 配置：
    - `CLOUDFLARE_ACCOUNT_ID`
    - `CLOUDFLARE_API_TOKEN`
-4. 若项目名不是 `dove-e2e`，新增 Repository Variable：
+3. 若项目名不是 `dove-e2e`，新增 Repository Variable：
    - `CLOUDFLARE_PAGES_PROJECT`
 
-项目必须先存在；工作流只部署 `dist/`，不会静默创建或删除 Cloudflare 项目。
+工作流会在首次部署时创建缺失的 Direct Upload 项目，后续只部署 `dist/`，不会删除项目。
+CI 还会运行 `pnpm run dict` 生成被 `.gitignore` 排除的离线词典；缺少这一步时
+`/dict.json.gz` 会被 SPA fallback 错误地返回为 `index.html`。
 
 ### BrowserStack
 

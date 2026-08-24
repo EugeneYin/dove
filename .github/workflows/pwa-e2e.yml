@@ -46,6 +46,9 @@ jobs:
       - name: Install Playwright Chromium
         run: pnpm exec playwright install --with-deps chromium
 
+      - name: Build offline dictionary
+        run: pnpm run dict
+
       - name: Read application version
         id: version
         run: |
@@ -101,6 +104,9 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Build offline dictionary
+        run: pnpm run dict
+
       - name: Build production bundle
         run: pnpm run build
 
@@ -131,6 +137,40 @@ jobs:
             echo "branch=pr-$PR_NUMBER" >> "$GITHUB_OUTPUT"
           else
             echo "branch=e2e-${REF_NAME//\//-}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Ensure Cloudflare Pages project exists
+        if: steps.cloudflare.outputs.enabled == 'true'
+        env:
+          ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          PROJECT_NAME: ${{ steps.target.outputs.project }}
+        run: |
+          response="$RUNNER_TEMP/cloudflare-pages-project.json"
+          endpoint="https://api.cloudflare.com/client/v4/accounts/$ACCOUNT_ID/pages/projects/$PROJECT_NAME"
+          status=$(curl --silent --show-error --output "$response" --write-out '%{http_code}' \
+            --header "Authorization: Bearer $API_TOKEN" \
+            "$endpoint")
+
+          if [[ "$status" == "200" ]]; then
+            echo "Cloudflare Pages project $PROJECT_NAME already exists."
+          elif [[ "$status" == "404" ]]; then
+            status=$(curl --silent --show-error --output "$response" --write-out '%{http_code}' \
+              --request POST \
+              --header "Authorization: Bearer $API_TOKEN" \
+              --header "Content-Type: application/json" \
+              --data "{\"name\":\"$PROJECT_NAME\",\"production_branch\":\"master\"}" \
+              "https://api.cloudflare.com/client/v4/accounts/$ACCOUNT_ID/pages/projects")
+            [[ "$status" == "200" || "$status" == "201" ]] || {
+              echo "Cloudflare Pages project creation failed (HTTP $status)."
+              jq '{success, errors, messages}' "$response"
+              exit 1
+            }
+            echo "Created Cloudflare Pages project $PROJECT_NAME."
+          else
+            echo "Cloudflare Pages project lookup failed (HTTP $status)."
+            jq '{success, errors, messages}' "$response"
+            exit 1
           fi
 
       - name: Deploy to Cloudflare Pages
