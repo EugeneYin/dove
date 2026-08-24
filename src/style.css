@@ -28,9 +28,10 @@ body {
 }
 
 #bar {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
   align-items: center;
-  gap: 16px;
+  gap: 12px;
   /* 装成 App 后状态栏会盖在页面上，顶栏得自己让出安全区 */
   padding: calc(10px + env(safe-area-inset-top)) calc(16px + env(safe-area-inset-right)) 10px
     calc(16px + env(safe-area-inset-left));
@@ -41,13 +42,178 @@ body {
   z-index: 10;
 }
 
-.file-btn {
-  padding: 7px 16px;
-  background: var(--accent);
-  color: #fff;
-  border-radius: 7px;
-  font-size: 14px;
+.bar-region {
+  min-width: 0;
+}
+
+.page-controls {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.menu-shell {
+  position: relative;
+  display: flex;
+}
+
+.menu-left {
+  justify-self: start;
+}
+
+.menu-right {
+  justify-self: stretch;
+  justify-content: flex-end;
+}
+
+.top-menu,
+.drawer-action {
+  font: inherit;
+  color: #52525b;
+  background: var(--card);
+  border: 1px solid var(--border);
   cursor: pointer;
+}
+
+.top-menu {
+  min-width: 64px;
+  max-width: 100%;
+  min-height: 34px;
+  padding: 6px 13px;
+  border-radius: 8px;
+  white-space: nowrap;
+}
+
+#settings-menu {
+  width: min(150px, 100%);
+  min-width: 0;
+}
+
+.top-menu[aria-expanded="true"] {
+  color: var(--accent);
+  border-color: #93c5fd;
+  background: #eff6ff;
+}
+
+.drawer {
+  position: absolute;
+  top: calc(100% + 9px);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: min(300px, calc(100vw - 24px));
+  padding: 10px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: 0 12px 32px rgb(0 0 0 / 0.14);
+}
+
+.menu-left .drawer {
+  left: 0;
+}
+
+.menu-right .drawer {
+  right: 0;
+}
+
+[hidden] {
+  display: none !important;
+}
+
+.drawer-action {
+  position: relative;
+  width: 100%;
+  min-height: 42px;
+  padding: 9px 12px;
+  overflow: hidden;
+  text-align: left;
+  border-radius: 8px;
+}
+
+.drawer-action:hover,
+.drawer-action:focus-visible {
+  border-color: #93c5fd;
+  background: #f8fafc;
+}
+
+.drawer-action:disabled {
+  cursor: default;
+}
+
+.drawer-section {
+  padding-top: 2px;
+  border-top: 1px solid var(--border);
+}
+
+.drawer-title {
+  padding: 8px 4px 6px;
+  font-size: 12px;
+  color: #a1a1aa;
+}
+
+.drawer-status {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  color: #71717a;
+  font-size: 12px;
+}
+
+.progress-button {
+  --progress: 0%;
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+}
+
+.progress-button::before {
+  position: absolute;
+  z-index: -1;
+  inset: 0 auto 0 0;
+  width: var(--progress);
+  background: #dbeafe;
+  content: "";
+  transition: width 180ms ease;
+}
+
+.button-copy {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+}
+
+.progress-button .button-label {
+  color: #71717a;
+}
+
+.button-meta {
+  min-width: 0;
+  overflow: hidden;
+  color: #94a3b8;
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 520px) {
+  #settings-menu {
+    padding-block: 3px;
+  }
+
+  #settings-menu .button-copy {
+    flex-direction: column;
+    align-items: center;
+    gap: 0;
+  }
+
+  #settings-menu .button-meta {
+    max-width: 100%;
+  }
 }
 
 #pager {
@@ -74,16 +240,8 @@ body {
 }
 
 #status {
-  margin-left: auto;
   display: flex;
-  align-items: center;
-  gap: 12px;
-  font-size: 13px;
-  color: #a1a1aa;
-  /* 顶栏空间有限，进度文字不该把翻页按钮挤出去 */
-  min-width: 0;
-  overflow: hidden;
-  white-space: nowrap;
+  flex-direction: column;
 }
 
 .dict-status.failed {
@@ -235,61 +393,48 @@ body {
   font-size: 11px;
 }
 
-/* ---- 最近阅读 ---- */
+/* ---- 最近打开 ---- */
 
 #recent {
-  width: min(100%, 460px);
-}
-
-#recent h2 {
-  margin: 4px 0 10px;
-  font-size: 13px;
-  font-weight: 500;
-  color: #a1a1aa;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
 }
 
 .recent-row {
-  display: flex;
-  align-items: stretch;
-  gap: 4px;
-  margin-bottom: 8px;
-  background: var(--card);
-  border: 1px solid var(--border);
-  border-radius: 10px;
+  min-width: 0;
 }
 
 .recent-open {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-  padding: 11px 14px;
+  width: 100%;
+  padding: 8px 10px;
   min-width: 0;
   font: inherit;
+  color: var(--fg);
   text-align: left;
   background: transparent;
   border: 0;
+  border-radius: 7px;
   cursor: pointer;
 }
 
+.recent-open:hover,
+.recent-open:focus-visible {
+  background: var(--bg);
+}
+
 .recent-name {
+  display: block;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.recent-meta {
+.drawer-empty {
+  margin: 0;
+  padding: 7px 10px;
   font-size: 12px;
   color: #a1a1aa;
-}
-
-.recent-remove {
-  padding: 0 14px;
-  font-size: 17px;
-  color: #a1a1aa;
-  background: transparent;
-  border: 0;
-  cursor: pointer;
 }
 
 #viewer {

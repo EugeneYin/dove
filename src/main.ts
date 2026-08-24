@@ -7,7 +7,7 @@ import { wordAtPoint } from "./word";
 import { dictInfo, loadDict, lookup as lookupWord } from "./dict";
 import { canSpeak, initSpeech, speak, voiceName } from "./speech";
 import { buildTextLayer, recognize, type OcrWord } from "./ocr";
-import { forgetDoc, recentDocs, rememberDoc, rememberPage } from "./library";
+import { recentDocs, rememberDoc, rememberPage } from "./library";
 import { initDiag, log, setAppProbe } from "./diag";
 
 // 自己创建 worker，好让 polyfill 先于 pdfjs worker 执行
@@ -26,7 +26,14 @@ const popupEl = $<HTMLDivElement>("popup");
 const hintEl = $<HTMLParagraphElement>("hint");
 const recentEl = $<HTMLElement>("recent");
 const statusEl = $<HTMLDivElement>("status");
+const fileMenuEl = $<HTMLButtonElement>("file-menu");
+const fileDrawerEl = $<HTMLDivElement>("file-drawer");
+const settingsMenuEl = $<HTMLButtonElement>("settings-menu");
+const settingsDrawerEl = $<HTMLDivElement>("settings-drawer");
 const installEl = $<HTMLButtonElement>("install");
+const installLabelEl = $<HTMLSpanElement>("install-label");
+const installProgressEl = $<HTMLSpanElement>("install-progress");
+const settingsProgressEl = $<HTMLSpanElement>("settings-progress");
 
 let doc: PDFDocumentProxy | null = null;
 let pageNum = 1;
@@ -172,7 +179,7 @@ async function openFile(file: File) {
   // 解析新文档要花时间，期间旧文本层若还留着，长按会取到上一个文档的词
   textLayerEl.replaceChildren();
   dismiss();
-  recentEl.hidden = true;
+  closeDrawers();
   try {
     const [data, remembered] = await Promise.all([file.arrayBuffer(), rememberDoc(file)]);
     doc = await pdfjs.getDocument({
@@ -196,41 +203,70 @@ async function openFile(file: File) {
 const size = (bytes: number) =>
   bytes < 1048576 ? `${Math.round(bytes / 1024)} KB` : `${(bytes / 1048576).toFixed(1)} MB`;
 
-/** 没有打开任何文档时列出最近读过的，装成 App 后这就是首屏 */
+/** 文件抽屉只保留最近五个文件名；recentDocs 已按 openedAt 倒序。 */
 async function showRecent() {
-  const all = await recentDocs();
-  // 删掉最后一本时要把整块收起来，否则会留下一个空的可见区域
-  recentEl.hidden = true;
+  const all = (await recentDocs()).slice(0, 5);
   recentEl.replaceChildren();
-  if (!all.length) return;
+  if (!all.length) {
+    recentEl.append(el("p", "drawer-empty", "暂无最近文件"));
+    return;
+  }
 
-  recentEl.append(el("h2", "", "最近阅读"));
   for (const record of all) {
     const open = el("button", "recent-open");
-    open.append(
-      el("span", "recent-name", record.name),
-      el("span", "recent-meta", `第 ${record.page} 页 · ${size(record.size)}`),
-    );
+    open.append(el("span", "recent-name", record.name));
     open.addEventListener("click", () => void openFile(record.file));
 
-    const remove = el("button", "recent-remove", "×");
-    remove.title = `移除 ${record.name}`;
-    remove.addEventListener("click", async () => {
-      await forgetDoc(record.id);
-      await showRecent();
-    });
-
     const row = el("div", "recent-row");
-    row.append(open, remove);
+    row.append(open);
     recentEl.append(row);
   }
-  recentEl.hidden = false;
-  showStatus(null);
 }
 
 fileInput.addEventListener("change", () => {
   const file = fileInput.files?.[0];
   if (file) void openFile(file);
+});
+
+$<HTMLButtonElement>("open-file").addEventListener("click", () => {
+  closeDrawers();
+  fileInput.click();
+});
+
+function setDrawer(button: HTMLButtonElement, drawer: HTMLElement, open: boolean) {
+  drawer.hidden = !open;
+  button.setAttribute("aria-expanded", String(open));
+}
+
+function closeDrawers() {
+  setDrawer(fileMenuEl, fileDrawerEl, false);
+  setDrawer(settingsMenuEl, settingsDrawerEl, false);
+  syncInstallUI();
+}
+
+fileMenuEl.addEventListener("click", async () => {
+  const open = fileDrawerEl.hidden;
+  closeDrawers();
+  if (!open) return;
+  setDrawer(fileMenuEl, fileDrawerEl, true);
+  await showRecent();
+});
+
+settingsMenuEl.addEventListener("click", () => {
+  const open = settingsDrawerEl.hidden;
+  closeDrawers();
+  if (open) setDrawer(settingsMenuEl, settingsDrawerEl, true);
+  syncInstallUI();
+});
+
+document.addEventListener("click", (event) => {
+  const target = event.target;
+  if (target instanceof Element && target.closest(".menu-shell")) return;
+  closeDrawers();
+});
+
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape") closeDrawers();
 });
 
 initSpeech();
@@ -333,6 +369,41 @@ const isIOS =
   /iPad|iPhone|iPod/.test(navigator.userAgent) ||
   (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
 
+let installed = standalone;
+let resourceProgress: { done: number; total: number; failed: number } | null = null;
+
+function progressText(done: number, total: number) {
+  const divisor = total >= 1048576 ? 1048576 : 1024;
+  const unit = total >= 1048576 ? "MB" : "KB";
+  const digits = unit === "MB" ? 1 : 0;
+  return `${(done / divisor).toFixed(digits)} / ${(total / divisor).toFixed(digits)} ${unit}`;
+}
+
+function syncInstallUI() {
+  installLabelEl.textContent = installed ? "已安装" : "安装";
+  installEl.setAttribute("aria-label", installed ? "已安装" : "安装");
+  installEl.disabled = installed;
+
+  const progress = resourceProgress;
+  const percentage = progress?.total
+    ? `${Math.min(100, Math.round((progress.done / progress.total) * 100))}%`
+    : "0%";
+  settingsMenuEl.style.setProperty("--progress", percentage);
+  installEl.style.setProperty("--progress", percentage);
+
+  const text = progress
+    ? progress.failed
+      ? `缺 ${progress.failed} 项`
+      : progressText(progress.done, progress.total)
+    : "";
+  settingsProgressEl.textContent = text;
+  installProgressEl.textContent = text;
+
+  const settingsOpen = !settingsDrawerEl.hidden;
+  settingsProgressEl.hidden = settingsOpen || !text;
+  installProgressEl.hidden = !settingsOpen || !text;
+}
+
 window.addEventListener("beforeinstallprompt", (e) => {
   e.preventDefault();
   installPrompt = e as InstallPromptEvent;
@@ -340,7 +411,8 @@ window.addEventListener("beforeinstallprompt", (e) => {
 
 window.addEventListener("appinstalled", () => {
   installPrompt = null;
-  installEl.hidden = true;
+  installed = true;
+  syncInstallUI();
 });
 
 /**
@@ -359,8 +431,8 @@ function whyNotInstallable(): string {
 }
 
 installEl.addEventListener("click", async () => {
+  if (installed) return;
   if (installPrompt) {
-    installEl.hidden = true;
     const prompt = installPrompt;
     installPrompt = null;
     await prompt.prompt();
@@ -369,11 +441,9 @@ installEl.addEventListener("click", async () => {
   showStatus(whyNotInstallable());
 });
 
-// 已经装好了就不必再提示，其余情况一律显示按钮——装不了也要让用户点得到解释
-installEl.hidden = standalone;
+syncInstallUI();
 
-// 注册的调用同样放在文件末尾：registerWorker 的回调会用到下面才声明的 offlineStatus，
-// 眼下靠 await 的时序侥幸不出错，但那正是本轮踩过的暂时性死区的同款写法。
+// 注册的调用放在文件末尾，确保消息与更新回调依赖的声明都已初始化。
 
 async function registerWorker() {
   try {
@@ -399,9 +469,6 @@ async function registerWorker() {
   }
 }
 
-const offlineStatus = el("span", "dict-status");
-statusEl.append(offlineStatus);
-
 function onWorkerMessage(data: unknown) {
   const msg = data as {
     type?: string;
@@ -413,19 +480,16 @@ function onWorkerMessage(data: unknown) {
   };
   if (msg?.type !== "prefetch") return;
 
-  if (!msg.finished) {
-    offlineStatus.textContent = `离线资源 ${size(msg.done)} / ${size(msg.total)}`;
-    return;
-  }
+  resourceProgress = { done: msg.done, total: msg.total, failed: msg.failed };
+  syncInstallUI();
+
+  if (!msg.finished) return;
   if (msg.failed) {
-    offlineStatus.textContent = `离线资源缺 ${msg.failed} 项，下次启动继续`;
     // 缺了什么必须留档：这些文件是离线时功能时好时坏的直接原因
     console.warn(`预缓存缺 ${msg.failed} 项：${msg.failures.join("；")}`);
     return;
   }
   log(`离线资源齐全 ${size(msg.total)}`);
-  offlineStatus.textContent = "已可离线使用";
-  setTimeout(() => (offlineStatus.textContent = ""), 4000);
 }
 
 /**
@@ -433,7 +497,7 @@ function onWorkerMessage(data: unknown) {
  * 已经不存在的文件。等用户点一下再刷新。
  */
 function offerUpdate(worker: ServiceWorker) {
-  const button = el("button", "chip", "新版本 · 刷新");
+  const button = el("button", "drawer-action", "新版本 · 刷新");
   button.addEventListener("click", () => worker.postMessage({ type: "skip-waiting" }));
   statusEl.prepend(button);
 

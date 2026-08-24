@@ -26,16 +26,59 @@
   </head>
   <body>
     <header id="bar">
-      <label class="file-btn">
-        打开 PDF
-        <input type="file" id="file" accept="application/pdf" hidden />
-      </label>
-      <button id="prev" class="nav" disabled>‹</button>
-      <span id="pager"></span>
-      <button id="next" class="nav" disabled>›</button>
-      <div id="status"></div>
-      <button id="install" class="chip" hidden>安装</button>
-      <button id="diag" class="chip" title="自诊断与日志">诊断</button>
+      <div class="bar-region menu-shell menu-left">
+        <button
+          id="file-menu"
+          class="top-menu"
+          type="button"
+          aria-expanded="false"
+          aria-controls="file-drawer"
+        >
+          文件
+        </button>
+        <div id="file-drawer" class="drawer" hidden>
+          <button id="open-file" class="drawer-action" type="button">打开 PDF</button>
+          <input type="file" id="file" accept="application/pdf" hidden />
+          <div class="drawer-section">
+            <div class="drawer-title">最近打开</div>
+            <div id="recent" class="recent-list" aria-live="polite"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="bar-region page-controls" aria-label="翻页">
+        <button id="prev" class="nav" disabled>‹</button>
+        <span id="pager"></span>
+        <button id="next" class="nav" disabled>›</button>
+      </div>
+
+      <div class="bar-region menu-shell menu-right">
+        <button
+          id="settings-menu"
+          class="top-menu progress-button"
+          type="button"
+          aria-label="设置"
+          aria-expanded="false"
+          aria-controls="settings-drawer"
+        >
+          <span class="button-copy">
+            <span class="button-label">设置</span>
+            <span id="settings-progress" class="button-meta" hidden></span>
+          </span>
+        </button>
+        <div id="settings-drawer" class="drawer" hidden>
+          <button id="install" class="drawer-action progress-button" type="button">
+            <span class="button-copy">
+              <span id="install-label" class="button-label">安装</span>
+              <span id="install-progress" class="button-meta" hidden></span>
+            </span>
+          </button>
+          <button id="diag" class="drawer-action" type="button" title="自诊断与日志">
+            <span class="button-label">诊断</span>
+          </button>
+          <div id="status" class="drawer-status" aria-live="polite"></div>
+        </div>
+      </div>
     </header>
 
     <main id="viewer">
@@ -43,7 +86,6 @@
         <canvas id="canvas"></canvas>
         <div id="text-layer" class="textLayer"></div>
       </div>
-      <section id="recent" hidden></section>
       <p id="hint">选择一个 PDF 文件开始，长按单词查词</p>
     </main>
 

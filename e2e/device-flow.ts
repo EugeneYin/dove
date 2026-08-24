@@ -167,6 +167,23 @@ export async function runDeviceFlow(page: Page, testInfo: TestInfo) {
     await waitForServiceWorker(page);
   });
 
+  await test.step("DEVICE-007 顶部菜单抽屉兼容性", async () => {
+    await expect(page.locator("#bar > .bar-region")).toHaveCount(3);
+    const regions = await page.locator("#bar").evaluate(() => {
+      const box = (id: string) => document.getElementById(id)?.getBoundingClientRect();
+      return { file: box("file-menu"), prev: box("prev"), next: box("next"), settings: box("settings-menu") };
+    });
+    expect(regions.file?.right).toBeLessThanOrEqual(regions.prev?.left ?? 0);
+    expect(regions.next?.right).toBeLessThanOrEqual(regions.settings?.left ?? 0);
+
+    await page.getByRole("button", { name: "文件", exact: true }).click();
+    await expect(page.locator("#file-drawer")).toBeVisible();
+    await page.getByRole("button", { name: "设置", exact: true }).click();
+    await expect(page.locator("#file-drawer")).toBeHidden();
+    await expect(page.locator("#settings-drawer")).toBeVisible();
+    await page.getByRole("button", { name: "设置", exact: true }).click();
+  });
+
   let cached = false;
   if (REAL_DEVICE) {
     const result = await prefetch(page);
@@ -194,6 +211,7 @@ export async function runDeviceFlow(page: Page, testInfo: TestInfo) {
   });
 
   await test.step("DEVICE-005 v2.1 诊断面板", async () => {
+    await page.getByRole("button", { name: "设置", exact: true }).click();
     await page.locator("#diag").click();
     await expect(page.locator(".diag-panel")).toBeVisible();
     await expect(page.locator(".diag-panel")).toContainText(APP_VERSION);
@@ -219,6 +237,7 @@ export async function runDeviceFlow(page: Page, testInfo: TestInfo) {
       await page.waitForFunction(() => document.body.dataset.dict === "ready", null, {
         timeout: 120_000,
       });
+      await page.getByRole("button", { name: "文件", exact: true }).click();
       await expect(page.locator("#recent .recent-row", { hasText: "sample.pdf" })).toBeVisible();
       await page
         .locator("#recent .recent-row", { hasText: "sample.pdf" })

@@ -124,6 +124,66 @@ test.describe("PWA 离线完整链路", () => {
     });
     console.log("[pwa-e2e] Service Worker 已接管");
 
+    await test.step("PWA-013 顶部三区与抽屉进度迁移", async () => {
+      await expect(page.locator("#bar > .bar-region")).toHaveCount(3);
+      await expect(page.getByRole("button", { name: "文件", exact: true })).toBeVisible();
+      await expect(page.getByLabel("翻页")).toBeVisible();
+      await expect(page.getByRole("button", { name: "设置", exact: true })).toBeVisible();
+
+      await page.getByRole("button", { name: "文件", exact: true }).click();
+      await expect(page.locator("#file-drawer")).toBeVisible();
+      await expect(page.getByRole("button", { name: "打开 PDF" })).toBeVisible();
+      await expect(page.locator("#file-drawer")).toContainText("最近打开");
+
+      await page.getByRole("button", { name: "设置", exact: true }).click();
+      await expect(page.locator("#file-drawer")).toBeHidden();
+      await expect(page.locator("#settings-drawer")).toBeVisible();
+      const menuButtons = await page.locator("#settings-drawer > button").evaluateAll((buttons) =>
+        buttons.map((button) => ({
+          text: button.querySelector(".button-label")?.textContent ?? button.textContent,
+          top: button.getBoundingClientRect().top,
+        })),
+      );
+      expect(menuButtons.map((button) => button.text?.trim())).toEqual(["安装", "诊断"]);
+      expect(menuButtons[1]?.top).toBeGreaterThan(menuButtons[0]?.top ?? 0);
+
+      await page.getByRole("button", { name: "设置", exact: true }).click();
+      await page.evaluate(() => {
+        navigator.serviceWorker.dispatchEvent(
+          new MessageEvent("message", {
+            data: {
+              type: "prefetch",
+              done: 5 * 1024 * 1024,
+              total: 10 * 1024 * 1024,
+              failed: 0,
+              failures: [],
+              finished: false,
+            },
+          }),
+        );
+      });
+      await expect(page.locator("#settings-progress")).toContainText(/\d+(?:\.\d)? \/ \d+(?:\.\d)? (?:KB|MB)/);
+      await expect(page.locator("#settings-progress")).toBeVisible();
+      const collapsedProgress = await page.locator("#settings-menu").evaluate((node) =>
+        Number.parseInt((node as HTMLElement).style.getPropertyValue("--progress"), 10),
+      );
+      expect(collapsedProgress).toBeGreaterThan(0);
+      expect(collapsedProgress).toBeLessThanOrEqual(100);
+
+      await page.getByRole("button", { name: /设置/ }).click();
+      await expect(page.locator("#settings-progress")).toBeHidden();
+      await expect(page.locator("#install-progress")).toBeVisible();
+      const [settingsProgress, installProgress] = await page.locator("#bar").evaluate(() => [
+        document.getElementById("settings-menu")?.style.getPropertyValue("--progress"),
+        document.getElementById("install")?.style.getPropertyValue("--progress"),
+      ]);
+      expect(installProgress).toBe(settingsProgress);
+      await page.evaluate(() => window.dispatchEvent(new Event("appinstalled")));
+      await expect(page.locator("#install-label")).toHaveText("已安装");
+      await page.keyboard.press("Escape");
+      await expect(page.locator("#settings-drawer")).toBeHidden();
+    });
+
     const prefetch = await page.evaluate(
       () =>
         new Promise<{ done: number; failed: number; failures: string[] }>((done, reject) => {
@@ -187,23 +247,30 @@ test.describe("PWA 离线完整链路", () => {
       expect.soft(await page.locator("body").getAttribute("data-dict")).toBe("ready");
     });
 
-    const recent = await test.step("PWA-005 离线列出最近文档", async () => {
+    await test.step("PWA-005 离线列出最近文档", async () => {
+      await page.getByRole("button", { name: "文件", exact: true }).click();
       await expect(page.locator("#recent .recent-row")).toHaveCount(2, { timeout: 20_000 });
-      const rows = await page.locator("#recent .recent-row").evaluateAll((nodes) =>
-        nodes.map((node) => ({
-          name: node.querySelector(".recent-name")?.textContent ?? "",
-          meta: node.querySelector(".recent-meta")?.textContent ?? "",
-        })),
-      );
-      expect.soft(rows.map((row) => row.name).sort()).toEqual(
-        ["sample-pages.pdf", "sample-scanned.pdf"].sort(),
-      );
-      return rows;
+      const rows = await page.locator("#recent .recent-name").allTextContents();
+      expect.soft(rows.sort()).toEqual(["sample-pages.pdf", "sample-scanned.pdf"].sort());
     });
 
     await test.step("PWA-006 记住阅读页码", async () => {
-      const pagesRow = recent.find((row) => row.name === "sample-pages.pdf");
-      expect.soft(pagesRow?.meta).toContain("第 3 页");
+      const savedPage = await page.evaluate(async () => {
+        const database = await new Promise<IDBDatabase>((resolve, reject) => {
+          const request = indexedDB.open("dove", 1);
+          request.onsuccess = () => resolve(request.result);
+          request.onerror = () => reject(request.error);
+        });
+        const transaction = database.transaction("docs", "readonly");
+        const request = transaction.objectStore("docs").getAll();
+        const records = await new Promise<Array<{ name: string; page: number }>>((resolve, reject) => {
+          request.onsuccess = () => resolve(request.result);
+          request.onerror = () => reject(request.error);
+        });
+        database.close();
+        return records.find((record) => record.name === "sample-pages.pdf")?.page;
+      });
+      expect.soft(savedPage).toBe(3);
     });
 
     await test.step("PWA-007 离线续读到原位置", async () => {
@@ -252,7 +319,48 @@ test.describe("PWA 离线完整链路", () => {
       expect.soft(popup?.word?.toLowerCase()).toBe(source?.toLowerCase());
     });
 
+    await test.step("PWA-014 最近打开限制为日期倒序五项", async () => {
+      await page.evaluate(async () => {
+        const database = await new Promise<IDBDatabase>((resolve, reject) => {
+          const request = indexedDB.open("dove", 1);
+          request.onsuccess = () => resolve(request.result);
+          request.onerror = () => reject(request.error);
+        });
+        const transaction = database.transaction("docs", "readwrite");
+        const store = transaction.objectStore("docs");
+        store.clear();
+        for (let index = 1; index <= 6; index += 1) {
+          const name = `recent-${index}.pdf`;
+          store.put({
+            id: name,
+            name,
+            size: index,
+            file: new File(["pdf"], name, { type: "application/pdf" }),
+            page: 1,
+            openedAt: index,
+          });
+        }
+        await new Promise<void>((resolve, reject) => {
+          transaction.oncomplete = () => resolve();
+          transaction.onerror = () => reject(transaction.error);
+        });
+        database.close();
+      });
+
+      await page.getByRole("button", { name: "文件", exact: true }).click();
+      await expect(page.locator("#recent .recent-row")).toHaveCount(5);
+      await expect(page.locator("#recent .recent-name")).toHaveText([
+        "recent-6.pdf",
+        "recent-5.pdf",
+        "recent-4.pdf",
+        "recent-3.pdf",
+        "recent-2.pdf",
+      ]);
+      await page.getByRole("button", { name: "文件", exact: true }).click();
+    });
+
     await test.step("PWA-012 离线打开 v2.1 诊断面板", async () => {
+      await page.getByRole("button", { name: "设置", exact: true }).click();
       await page.locator("#diag").click();
       await expect.soft(page.locator(".diag-panel")).toBeVisible();
       await expect.soft(page.locator(".diag-panel")).toContainText(APP_VERSION);
