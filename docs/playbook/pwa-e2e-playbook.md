@@ -5,8 +5,34 @@
 
 ## 1. 当前结论
 
-截至 2026-08-24，GitHub Actions 与 Cloudflare Pages 已完成首轮实测：完整离线基线、Pages
-部署和四端公网设备模拟均通过。BrowserStack 真机与安装到主屏幕后的人工验收尚未执行。
+截至 2026-08-25，Dove 已建立独立的 `stage` 分支与 `dove-stage` Cloudflare Pages 项目，并完成
+固定域名验收。开发期 localhost、Quick Tunnel 和单次 deployment URL 不再作为用户验收链接。
+
+### 2026-08-25 固定 stage 验收
+
+- 应用版本：`2.1.1`
+- 分支：`stage`
+- Git SHA：`8c01575d742d6f63be3dc2356cb19a41b34381a1`
+- GitHub Run：[32806615158](https://github.com/EugeneYin/dove/actions/runs/32806615158)
+- 候选 deployment：`https://b5abfb09.dove-e2e.pages.dev`
+- 候选稳定别名：`https://e2e-stage.dove-e2e.pages.dev`
+- stage deployment：`https://037060fd.dove-stage.pages.dev`
+- 固定验收链接：`https://stage.dove.ethanyin.com`
+
+| 层次 | 2026-08-25 结果 |
+|---|---|
+| 完整离线基线 | `PWA regression baseline` 成功，版本、完整 SHA 与 Artifact 已记录 |
+| Cloudflare 候选部署 | 成功，随后在候选 URL 上执行设备模拟 |
+| PC / iPhone / iPad / Android Pad 模拟 | Actions 4 / 4 通过；固定验收域名上再次执行 4 / 4 通过 |
+| stage promotion | `dove-stage` 部署、DNS 检查、自定义域激活和固定 URL 探针全部成功 |
+| 固定域名资源 | 首页、manifest、Service Worker、词典连续三轮共 12 / 12 返回 200 |
+| BrowserStack 三类真机 | 本次 stage Run 按策略跳过，不能表述为真机通过 |
+| 安装到主屏幕后人工验收 | 尚未执行 |
+
+因此当前可以准确说：**固定 Cloudflare stage 验收链路已经完成并通过，且能回溯到版本、SHA、Run、
+候选产物和 stage 产物；BrowserStack 真机与安装到主屏幕后的人工验收仍是独立待办。**
+
+### 2026-08-24 首轮环境验证
 
 验证对象：
 
@@ -31,8 +57,8 @@
 | BrowserStack 三类真机 | 配置与用例已实现 | 尚未运行：本机没有 BrowserStack 凭据 |
 | GitHub Actions | 已验证 | baseline、Pages deploy、device smoke 全部成功；两类 Artifact 已归档 90 天 |
 
-因此现在可以准确说：**可回溯的四端公网设备模拟 E2E 环境已经完成并通过；BrowserStack
-真机和人工安装测试尚未执行，不能把本次 4 / 4 写成真机通过。**
+首轮环境结论为：**可回溯的四端公网设备模拟 E2E 环境已经完成并通过；BrowserStack
+真机和人工安装测试尚未执行，不能把 4 / 4 设备模拟写成真机通过。**
 
 ## 2. 要达到的目标
 
