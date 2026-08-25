@@ -436,7 +436,7 @@ jobs:
     timeout-minutes: 20
     environment:
       name: master-live
-      url: https://master.dove.ethanyin.com
+      url: https://dove-master.pages.dev
 
     steps:
       - uses: actions/checkout@v7
@@ -500,7 +500,7 @@ jobs:
       - name: Verify fixed master URL
         env:
           DEPLOYMENT_URL: ${{ steps.master-deploy.outputs.deployment-url }}
-          MASTER_URL: https://master.dove.ethanyin.com
+          MASTER_URL: https://dove-master.pages.dev
         run: |
           for resource in / /manifest.webmanifest /sw.js /dict.json.gz; do
             name=${resource#/}

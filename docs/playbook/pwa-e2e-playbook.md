@@ -83,7 +83,7 @@ GitHub PR / push / schedule / manual
   │    └─ PC Chromium / iPhone WebKit / iPad WebKit / Android Pad Chromium
   ├─ Verified branch promotion
   │    ├─ stage → dove-stage → stage.dove.ethanyin.com
-  │    └─ master → dove-master → master.dove.ethanyin.com
+  │    └─ master → dove-master → dove-master.pages.dev
   └─ BrowserStack real devices
        └─ iPhone Safari / iPad Safari / Galaxy Tab Chrome → 真机断网 → 离线重载
 ```
@@ -288,14 +288,14 @@ Quick Tunnel、单次 deployment URL 或仅在本机打开的报告都不是用�
 把该 SHA 的构建发布到独立的 `dove-master` Pages 项目，并逐一比较不可变 deployment URL 与以下
 固定地址的响应体：
 
-- `https://master.dove.ethanyin.com/`
-- `https://master.dove.ethanyin.com/manifest.webmanifest`
-- `https://master.dove.ethanyin.com/sw.js`
-- `https://master.dove.ethanyin.com/dict.json.gz`
+- `https://dove-master.pages.dev/`
+- `https://dove-master.pages.dev/manifest.webmanifest`
+- `https://dove-master.pages.dev/sw.js`
+- `https://dove-master.pages.dev/dict.json.gz`
 
-因此固定地址表示最近一次成功发布的 `master`，而不是绕过测试强制展示失败构建。首次启用时由域名
-管理员一次性添加指向 `dove-master.pages.dev` 的 Proxied CNAME，并在 Pages 项目绑定自定义域；日常
-工作流 Token 不需要 DNS Write。
+因此固定地址表示最近一次成功发布的 `master`，而不是绕过测试强制展示失败构建。可选友好别名
+`master.dove.ethanyin.com` 可由域名管理员一次性绑定并添加 CNAME，但不作为日常发布门禁；工作流
+Token 不需要 DNS Write。
 
 ## 9. 局限性
 

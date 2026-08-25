@@ -158,7 +158,7 @@ pnpm run serve:tunnel  # cloudflared 公网隧道，设备端零配置
 `stage` 分支；GitHub Actions 在公网 Preview 四端模拟通过后，才发布到固定地址
 `https://stage.dove.ethanyin.com`。交付时同时记录应用版本、stage Git SHA、Actions Run 和固定链接。
 
-`master` 的长期在线地址是 `https://master.dove.ethanyin.com`。每次 `master` push 也必须先通过完整
+`master` 的长期在线地址是 `https://dove-master.pages.dev`。每次 `master` push 也必须先通过完整
 PWA 基线、Preview 和四端模拟，随后才更新该固定站点；若门禁失败，线上继续保留上一版。
 
 `pnpm run serve` 会起两个服务：
