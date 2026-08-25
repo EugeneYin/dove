@@ -9,6 +9,12 @@ import { canSpeak, initSpeech, speak, voiceName } from "./speech";
 import { buildTextLayer, recognize, type OcrWord } from "./ocr";
 import { recentDocs, rememberDoc, rememberPage } from "./library";
 import { initDiag, log, setAppProbe } from "./diag";
+import {
+  loadWordbook,
+  saveWordbook,
+  singleLineMeaning,
+  type WordbookEntry,
+} from "./wordbook";
 import { fetchOnlineExamples } from "./examples";
 
 // 自己创建 worker，好让 polyfill 先于 pdfjs worker 执行
@@ -35,6 +41,21 @@ const installEl = $<HTMLButtonElement>("install");
 const installLabelEl = $<HTMLSpanElement>("install-label");
 const installProgressEl = $<HTMLSpanElement>("install-progress");
 const settingsProgressEl = $<HTMLSpanElement>("settings-progress");
+const pageControlsEl = document.querySelector<HTMLElement>(".page-controls")!;
+const viewerEl = $<HTMLElement>("viewer");
+const wordbookMenuEl = $<HTMLButtonElement>("wordbook-menu");
+const wordbookPageEl = $<HTMLElement>("wordbook-page");
+const wordbookListEl = $<HTMLTableSectionElement>("wordbook-list");
+const wordbookEmptyEl = $<HTMLParagraphElement>("wordbook-empty");
+const wordbookCountEl = $<HTMLParagraphElement>("wordbook-count");
+const wordbookManageEl = $<HTMLButtonElement>("wordbook-manage");
+const wordbookDeleteEl = $<HTMLButtonElement>("wordbook-delete");
+const wordbookEditorEl = $<HTMLDialogElement>("wordbook-editor");
+const wordbookFormEl = $<HTMLFormElement>("wordbook-form");
+const wordbookWordEl = $<HTMLInputElement>("wordbook-word");
+const wordbookPhoneticEl = $<HTMLInputElement>("wordbook-phonetic");
+const wordbookMeaningEl = $<HTMLTextAreaElement>("wordbook-meaning");
+const wordbookLookupStatusEl = $<HTMLParagraphElement>("wordbook-lookup-status");
 const onlineExamplesEl = $<HTMLInputElement>("online-examples");
 
 const ONLINE_EXAMPLES_KEY = "dove.onlineExamples";
@@ -195,6 +216,7 @@ function showStatus(message: string | null, isError = false) {
 
 async function openFile(file: File) {
   log(`打开 ${file.name} · ${size(file.size)}`);
+  setWordbookOpen(false);
   showStatus(`正在打开 ${file.name}…`);
   // 解析新文档要花时间，期间旧文本层若还留着，长按会取到上一个文档的词
   textLayerEl.replaceChildren();
@@ -288,6 +310,186 @@ document.addEventListener("click", (event) => {
 document.addEventListener("keydown", (event) => {
   if (event.key === "Escape") closeDrawers();
 });
+
+// ---------------- 单词本 ----------------
+
+let wordbookEntries: WordbookEntry[] = [];
+let wordbookManaging = false;
+
+try {
+  wordbookEntries = loadWordbook(localStorage);
+} catch (e) {
+  console.warn("单词本不可用：", e);
+}
+
+function selectedWordbookIds(): string[] {
+  return [...wordbookListEl.querySelectorAll<HTMLInputElement>("input:checked")].map(
+    (input) => input.value,
+  );
+}
+
+function syncWordbookSelection() {
+  const count = selectedWordbookIds().length;
+  wordbookDeleteEl.disabled = count === 0;
+  wordbookDeleteEl.textContent = count ? `删除（${count}）` : "删除";
+}
+
+function renderWordbook() {
+  wordbookListEl.replaceChildren();
+  wordbookCountEl.textContent = `${wordbookEntries.length} 个单词`;
+  wordbookEmptyEl.hidden = wordbookEntries.length > 0;
+  wordbookPageEl.classList.toggle("is-managing", wordbookManaging);
+
+  for (const entry of wordbookEntries) {
+    const select = document.createElement("input");
+    select.type = "checkbox";
+    select.value = entry.id;
+    select.hidden = !wordbookManaging;
+    select.setAttribute("aria-label", `选择 ${entry.word}`);
+    select.addEventListener("change", syncWordbookSelection);
+
+    const selectCell = document.createElement("td");
+    selectCell.className = "wordbook-select-cell";
+    selectCell.append(select);
+
+    const wordCell = document.createElement("td");
+    wordCell.append(el("div", "wordbook-cell-scroll", entry.word));
+
+    const phoneticCell = document.createElement("td");
+    phoneticCell.append(el("div", "wordbook-cell-scroll", entry.phonetic));
+
+    const meaningCell = document.createElement("td");
+    meaningCell.append(el("div", "wordbook-cell-scroll", singleLineMeaning(entry.meaning)));
+
+    const row = document.createElement("tr");
+    row.dataset.entryId = entry.id;
+    row.append(selectCell, wordCell, phoneticCell, meaningCell);
+    wordbookListEl.append(row);
+  }
+
+  syncWordbookSelection();
+}
+
+function persistWordbook(): boolean {
+  try {
+    saveWordbook(localStorage, wordbookEntries);
+    return true;
+  } catch (e) {
+    console.error("保存单词本失败：", e);
+    return false;
+  }
+}
+
+function setWordbookOpen(open: boolean) {
+  closeDrawers();
+  dismiss();
+  viewerEl.hidden = open;
+  wordbookPageEl.hidden = !open;
+  pageControlsEl.hidden = open;
+  wordbookMenuEl.setAttribute("aria-pressed", String(open));
+  if (open) renderWordbook();
+}
+
+function setWordbookManaging(managing: boolean) {
+  wordbookManaging = managing;
+  wordbookManageEl.setAttribute("aria-pressed", String(managing));
+  wordbookManageEl.textContent = managing ? "完成" : "管理";
+  wordbookDeleteEl.hidden = !managing;
+  renderWordbook();
+}
+
+wordbookMenuEl.addEventListener("click", () => {
+  setWordbookOpen(wordbookPageEl.hidden !== false);
+});
+
+$<HTMLButtonElement>("wordbook-back").addEventListener("click", () => setWordbookOpen(false));
+
+wordbookManageEl.addEventListener("click", () => {
+  setWordbookManaging(!wordbookManaging);
+});
+
+wordbookDeleteEl.addEventListener("click", () => {
+  const selected = new Set(selectedWordbookIds());
+  if (!selected.size) return;
+  const previous = wordbookEntries;
+  wordbookEntries = wordbookEntries.filter((entry) => !selected.has(entry.id));
+  if (persistWordbook()) renderWordbook();
+  else wordbookEntries = previous;
+});
+
+function openWordbookEditor() {
+  wordbookFormEl.reset();
+  wordbookLookupStatusEl.textContent = "输入单词后将自动查询离线词典。";
+  wordbookEditorEl.showModal();
+  wordbookWordEl.focus();
+}
+
+$<HTMLButtonElement>("wordbook-add").addEventListener("click", openWordbookEditor);
+$<HTMLButtonElement>("wordbook-cancel").addEventListener("click", () => wordbookEditorEl.close());
+
+let wordbookLookupTimer: number | undefined;
+let wordbookLookupToken = 0;
+
+wordbookWordEl.addEventListener("input", () => {
+  if (wordbookLookupTimer !== undefined) clearTimeout(wordbookLookupTimer);
+  const token = ++wordbookLookupToken;
+  const word = wordbookWordEl.value.trim();
+
+  if (!word) {
+    wordbookLookupStatusEl.textContent = "输入单词后将自动查询离线词典。";
+    wordbookPhoneticEl.value = "";
+    wordbookMeaningEl.value = "";
+    return;
+  }
+
+  wordbookLookupStatusEl.textContent = "正在查询…";
+  wordbookLookupTimer = window.setTimeout(async () => {
+    try {
+      await loadDict();
+      if (token !== wordbookLookupToken) return;
+      const entry = lookupWord(word);
+      if (!entry) {
+        wordbookPhoneticEl.value = "";
+        wordbookMeaningEl.value = "";
+        wordbookLookupStatusEl.textContent = "词典未收录，请手动填写音标和词性与含义。";
+        return;
+      }
+
+      wordbookPhoneticEl.value = entry.phonetic;
+      wordbookMeaningEl.value = singleLineMeaning(entry.translation || entry.definition);
+      wordbookLookupStatusEl.textContent = `已从离线词典补全 ${entry.word}。`;
+    } catch {
+      if (token !== wordbookLookupToken) return;
+      wordbookLookupStatusEl.textContent = "词典暂不可用，请手动填写音标和词性与含义。";
+    }
+  }, 250);
+});
+
+wordbookFormEl.addEventListener("submit", (event) => {
+  event.preventDefault();
+  const word = wordbookWordEl.value.trim();
+  if (!word) return;
+
+  const createdAt = Date.now();
+  wordbookEntries.push({
+    id: `${createdAt}-${Math.random().toString(36).slice(2, 9)}`,
+    word,
+    phonetic: wordbookPhoneticEl.value.trim(),
+    meaning: singleLineMeaning(wordbookMeaningEl.value),
+    createdAt,
+  });
+
+  if (!persistWordbook()) {
+    wordbookEntries.pop();
+    wordbookLookupStatusEl.textContent = "保存失败，请检查浏览器是否允许本地存储。";
+    return;
+  }
+
+  wordbookEditorEl.close();
+  renderWordbook();
+});
+
+renderWordbook();
 
 initSpeech();
 
@@ -703,7 +905,7 @@ window.addEventListener("resize", () => {
 
 // 翻页
 function go(delta: number) {
-  if (!doc) return;
+  if (!doc || !wordbookPageEl.hidden) return;
   const target = pageNum + delta;
   if (target < 1 || target > doc.numPages) return;
   pageNum = target;
