@@ -311,6 +311,62 @@ jobs:
           wranglerVersion: "4.125.0"
           command: pages deploy dist --project-name=dove-stage --branch=stage
 
+      - name: Ensure stage DNS CNAME
+        env:
+          ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          ZONE_NAME: ethanyin.com
+          STAGE_DOMAIN: stage.dove.ethanyin.com
+          CNAME_TARGET: dove-stage.pages.dev
+        run: |
+          response="$RUNNER_TEMP/cloudflare-stage-dns.json"
+          zone_status=$(curl --silent --show-error --get --output "$response" --write-out '%{http_code}' \
+            --header "Authorization: Bearer $API_TOKEN" \
+            --data-urlencode "name=$ZONE_NAME" \
+            --data-urlencode "account.id=$ACCOUNT_ID" \
+            "https://api.cloudflare.com/client/v4/zones")
+          zone_id=$(jq -r '.result[0].id // empty' "$response")
+
+          [[ "$zone_status" == "200" && -n "$zone_id" ]] || {
+            echo "Cloudflare zone lookup failed (HTTP $zone_status). The token needs Zone Read and DNS Write for $ZONE_NAME."
+            jq '{success, errors, messages}' "$response"
+            exit 1
+          }
+
+          endpoint="https://api.cloudflare.com/client/v4/zones/$zone_id/dns_records"
+          record_status=$(curl --silent --show-error --get --output "$response" --write-out '%{http_code}' \
+            --header "Authorization: Bearer $API_TOKEN" \
+            --data-urlencode "type=CNAME" \
+            --data-urlencode "name=$STAGE_DOMAIN" \
+            "$endpoint")
+          record_id=$(jq -r '.result[0].id // empty' "$response")
+          record_target=$(jq -r '.result[0].content // empty' "$response")
+
+          [[ "$record_status" == "200" ]] || {
+            echo "Cloudflare DNS lookup failed (HTTP $record_status)."
+            jq '{success, errors, messages}' "$response"
+            exit 1
+          }
+
+          if [[ -n "$record_id" && "$record_target" != "$CNAME_TARGET" ]]; then
+            echo "$STAGE_DOMAIN already exists with a different target; refusing to overwrite it."
+            exit 1
+          fi
+
+          if [[ -z "$record_id" ]]; then
+            record_status=$(curl --silent --show-error --output "$response" --write-out '%{http_code}' \
+              --request POST \
+              --header "Authorization: Bearer $API_TOKEN" \
+              --header "Content-Type: application/json" \
+              --data "{\"type\":\"CNAME\",\"name\":\"$STAGE_DOMAIN\",\"content\":\"$CNAME_TARGET\",\"ttl\":1,\"proxied\":true,\"comment\":\"Dove fixed stage acceptance URL\"}" \
+              "$endpoint")
+            [[ "$record_status" == "200" || "$record_status" == "201" ]] || {
+              echo "Cloudflare DNS creation failed (HTTP $record_status)."
+              jq '{success, errors, messages}' "$response"
+              exit 1
+            }
+          fi
+
       - name: Attach fixed stage domain
         env:
           ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
@@ -339,7 +395,7 @@ jobs:
             exit 1
           }
 
-          for attempt in {1..30}; do
+          for attempt in {1..60}; do
             curl --silent --show-error --output "$response" \
               --header "Authorization: Bearer $API_TOKEN" \
               "$endpoint/$STAGE_DOMAIN"
