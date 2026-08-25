@@ -3,7 +3,8 @@
 - 日期：2026-08-25
 - 模式：AllInOne
 - 基线：`master@7e2554b30542c2a825b7fa53089ce31cfa7ef760` / `3.0.0`
-- 固定地址：`https://dove-master.pages.dev`
+- 对外固定地址：`https://master.dove.ethanyin.com`
+- Pages 固定地址：`https://dove-master.pages.dev`
 - Cloudflare Pages 项目：`dove-master`
 
 ## 目标
@@ -23,15 +24,17 @@
 
 1. `master` push 的 baseline、Preview、四端模拟成功后，`master-promote` 自动执行。
 2. `dove-master` 生产分支为 `master`，部署内容来自该次 GitHub Actions 的 `github.sha`。
-3. 固定地址的 `/`、`/manifest.webmanifest`、`/sw.js`、`/dict.json.gz` 均为 2xx。
+3. Pages 固定地址的 `/`、`/manifest.webmanifest`、`/sw.js`、`/dict.json.gz` 均为 2xx。
 4. 上述四个资源与本次不可变 deployment URL 的响应体逐一相同。
-5. Actions Summary 记录应用版本、完整 SHA、候选 deployment、master deployment 和固定地址。
-6. 新的 `master` push 若门禁失败，`master-promote` 不运行，固定站点保留上一版。
+5. 对外固定地址的上述四个资源均为 2xx，并与 Pages 固定地址的响应体逐一相同；该项属于一次性
+   域名验收，不属于日常 `master-promote` 门禁。
+6. Actions Summary 记录应用版本、完整 SHA、候选 deployment、master deployment 和 Pages 固定地址。
+7. 新的 `master` push 若门禁失败，`master-promote` 不运行，固定站点保留上一版。
 
 ## 初始化与回滚
 
 - 在 Cloudflare Pages 创建 `dove-master`，生产分支设置为 `master`。
-- 可选友好别名 `master.dove.ethanyin.com` 不属于发布门禁；启用时由域名管理员一次性绑定并添加
-  指向 `dove-master.pages.dev` 的 CNAME。
+- 对外固定地址 `master.dove.ethanyin.com` 已绑定到 `dove-master`，并使用指向
+  `dove-master.pages.dev` 的 Proxied CNAME；该一次性域名配置不属于日常发布门禁。
 - 代码回滚使用 Git revert；站点内容需要紧急回退时，在 `master` revert 后由同一门禁重新发布。
 - 不删除旧 deployment，保留 Cloudflare 与 GitHub Actions 的 SHA 证据链。
