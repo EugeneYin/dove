@@ -319,6 +319,11 @@ jobs:
           STAGE_DOMAIN: stage.dove.ethanyin.com
           CNAME_TARGET: dove-stage.pages.dev
         run: |
+          if getent ahosts "$STAGE_DOMAIN" >/dev/null; then
+            echo "$STAGE_DOMAIN already resolves; keeping the existing DNS record."
+            exit 0
+          fi
+
           response="$RUNNER_TEMP/cloudflare-stage-dns.json"
           zone_status=$(curl --silent --show-error --get --output "$response" --write-out '%{http_code}' \
             --header "Authorization: Bearer $API_TOKEN" \

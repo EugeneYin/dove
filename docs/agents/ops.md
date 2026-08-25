@@ -137,6 +137,10 @@ baseline 与四端模拟，再执行 `stage-promote`；只有固定地址 `https
 manifest、Service Worker 和词典探针全部成功后，才可以把该地址作为验收链接。开发期间的 localhost、
 Quick Tunnel 和单次 deployment URL 都不能替代固定验收地址。
 
+首次绑定固定域名时，`stage.dove.ethanyin.com` 需要一条指向 `dove-stage.pages.dev` 的 Proxied CNAME。
+工作流会在 Cloudflare Token 同时具备 Zone Read 与 DNS Write 时自动创建；若 Token 仅有 Pages 权限，
+由域名管理员一次性添加该记录即可，后续发布检测到域名已解析后不会再要求 DNS 写权限。
+
 ```bash
 git push origin feat/v2.1-diagnostics
 gh run list --workflow pwa-e2e.yml --branch feat/v2.1-diagnostics --limit 5
