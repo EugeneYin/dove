@@ -154,6 +154,10 @@ pnpm run serve         # 局域网 https，mkcert 签本机证书
 pnpm run serve:tunnel  # cloudflared 公网隧道，设备端零配置
 ```
 
+本地地址和 `serve:tunnel` 只用于开发调试，不作为验收链接。需要交付验收时，将已测试提交推送到
+`stage` 分支；GitHub Actions 在公网 Preview 四端模拟通过后，才发布到固定地址
+`https://stage.dove.ethanyin.com`。交付时同时记录应用版本、stage Git SHA、Actions Run 和固定链接。
+
 `pnpm run serve` 会起两个服务：
 
 | 端口 | 协议 | 用途 |
