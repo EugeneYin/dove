@@ -81,6 +81,9 @@ GitHub PR / push / schedule / manual
   │    └─ dist/ → 固定项目下的分支 Preview HTTPS URL
   ├─ Device emulation smoke
   │    └─ PC Chromium / iPhone WebKit / iPad WebKit / Android Pad Chromium
+  ├─ Verified branch promotion
+  │    ├─ stage → dove-stage → stage.dove.ethanyin.com
+  │    └─ master → dove-master → master.dove.ethanyin.com
   └─ BrowserStack real devices
        └─ iPhone Safari / iPad Safari / Galaxy Tab Chrome → 真机断网 → 离线重载
 ```
@@ -278,6 +281,21 @@ baseline、Cloudflare 候选部署和四端模拟全部成功后执行，并验�
 
 交付验收时应提供固定地址、`stage` 完整 Git SHA、应用版本和 GitHub Actions Run。localhost、
 Quick Tunnel、单次 deployment URL 或仅在本机打开的报告都不是用户验收链接。
+
+### Master 长久在线地址
+
+`master` push 使用相同的 baseline、候选 Preview 和四端模拟门禁。三项全部成功后，`master-promote`
+把该 SHA 的构建发布到独立的 `dove-master` Pages 项目，并逐一比较不可变 deployment URL 与以下
+固定地址的响应体：
+
+- `https://master.dove.ethanyin.com/`
+- `https://master.dove.ethanyin.com/manifest.webmanifest`
+- `https://master.dove.ethanyin.com/sw.js`
+- `https://master.dove.ethanyin.com/dict.json.gz`
+
+因此固定地址表示最近一次成功发布的 `master`，而不是绕过测试强制展示失败构建。首次启用时由域名
+管理员一次性添加指向 `dove-master.pages.dev` 的 Proxied CNAME，并在 Pages 项目绑定自定义域；日常
+工作流 Token 不需要 DNS Write。
 
 ## 9. 局限性
 
