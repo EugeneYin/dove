@@ -181,10 +181,11 @@ export async function runDeviceFlow(page: Page, testInfo: TestInfo) {
     await page.getByRole("button", { name: "设置", exact: true }).click();
     await expect(page.locator("#file-drawer")).toBeHidden();
     await expect(page.locator("#settings-drawer")).toBeVisible();
+    await expect(page.getByRole("switch", { name: /在线例句/ })).not.toBeChecked();
     await page.getByRole("button", { name: "设置", exact: true }).click();
   });
 
-  await test.step("DEVICE-008 单词本入口与窄屏表格", async () => {
+  await test.step("DEVICE-009 单词本入口与窄屏表格", async () => {
     const regions = await page.locator("#bar").evaluate(() => {
       const box = (id: string) => document.getElementById(id)?.getBoundingClientRect();
       return { wordbook: box("wordbook-menu"), prev: box("prev") };
@@ -229,6 +230,63 @@ export async function runDeviceFlow(page: Page, testInfo: TestInfo) {
 
   await test.step("DEVICE-004 桌面双击或移动端长按取词", async () => {
     expect(await lookUp(page, "ubiquitous")).toBe("ubiquitous");
+  });
+
+  await test.step("DEVICE-008 在线例句开关与折叠词卡", async () => {
+    await page.evaluate(() => {
+      const originalFetch = window.fetch;
+      window.fetch = (input, init) => {
+        const url =
+          typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+        if (url === "https://freedictionaryapi.com/api/v1/entries/en/convey") {
+          return Promise.resolve(
+            new Response(
+              JSON.stringify({
+                word: "convey",
+                entries: [
+                  {
+                    senses: [
+                      {
+                        examples: [
+                          "Air conveys sound.",
+                          "She conveyed the news calmly.",
+                          "This third example must not be shown.",
+                        ],
+                        subsenses: [],
+                      },
+                    ],
+                  },
+                ],
+                source: { url: "https://en.wiktionary.org/wiki/convey" },
+              }),
+              { headers: { "content-type": "application/json" } },
+            ),
+          );
+        }
+        return originalFetch(input, init);
+      };
+    });
+
+    await page.getByRole("button", { name: "设置", exact: true }).click();
+    const toggle = page.getByRole("switch", { name: /在线例句/ });
+    await toggle.check();
+    await page.getByRole("button", { name: "设置", exact: true }).click();
+
+    expect(await lookUp(page, "conveys")).toBe("convey");
+    const examples = page.locator("#popup .examples");
+    await expect(examples).not.toHaveAttribute("open", "");
+    await examples.locator("summary").click();
+    await expect(examples.locator(".example-item")).toHaveText([
+      "Air conveys sound.",
+      "She conveyed the news calmly.",
+    ]);
+    await expect(examples.locator(".example-source")).toContainText(
+      "FreeDictionaryAPI.com · Wiktionary",
+    );
+
+    await page.getByRole("button", { name: "设置", exact: true }).click();
+    await toggle.uncheck();
+    await page.getByRole("button", { name: "设置", exact: true }).click();
   });
 
   await test.step("DEVICE-005 v2.1 诊断面板", async () => {

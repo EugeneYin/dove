@@ -15,6 +15,7 @@ import {
   singleLineMeaning,
   type WordbookEntry,
 } from "./wordbook";
+import { fetchOnlineExamples } from "./examples";
 
 // 自己创建 worker，好让 polyfill 先于 pdfjs worker 执行
 pdfjs.GlobalWorkerOptions.workerPort = new Worker(new URL("./pdf-worker.ts", import.meta.url), {
@@ -55,6 +56,25 @@ const wordbookWordEl = $<HTMLInputElement>("wordbook-word");
 const wordbookPhoneticEl = $<HTMLInputElement>("wordbook-phonetic");
 const wordbookMeaningEl = $<HTMLTextAreaElement>("wordbook-meaning");
 const wordbookLookupStatusEl = $<HTMLParagraphElement>("wordbook-lookup-status");
+const onlineExamplesEl = $<HTMLInputElement>("online-examples");
+
+const ONLINE_EXAMPLES_KEY = "dove.onlineExamples";
+let onlineExamplesEnabled = false;
+try {
+  onlineExamplesEnabled = localStorage.getItem(ONLINE_EXAMPLES_KEY) === "1";
+} catch {
+  // 本地存储不可用时保持默认关闭；开关在当前会话仍可使用。
+}
+onlineExamplesEl.checked = onlineExamplesEnabled;
+onlineExamplesEl.addEventListener("change", () => {
+  onlineExamplesEnabled = onlineExamplesEl.checked;
+  try {
+    if (onlineExamplesEnabled) localStorage.setItem(ONLINE_EXAMPLES_KEY, "1");
+    else localStorage.removeItem(ONLINE_EXAMPLES_KEY);
+  } catch {
+    // 某些隐私模式禁用本地存储，不应影响当前会话。
+  }
+});
 
 let doc: PDFDocumentProxy | null = null;
 let pageNum = 1;
@@ -747,7 +767,68 @@ function el(tag: string, cls: string, text?: string) {
   return node;
 }
 
+let exampleRequest: AbortController | null = null;
+
+function exampleAttribution(sourceUrl: string | null) {
+  const attribution = el("div", "example-source", "来源：");
+  const api = el("a", "", "FreeDictionaryAPI.com");
+  api.setAttribute("href", "https://freedictionaryapi.com/");
+  api.setAttribute("target", "_blank");
+  api.setAttribute("rel", "noreferrer");
+  attribution.append(api);
+
+  if (sourceUrl) {
+    const source = el("a", "", "Wiktionary");
+    source.setAttribute("href", sourceUrl);
+    source.setAttribute("target", "_blank");
+    source.setAttribute("rel", "noreferrer");
+    attribution.append(" · ", source);
+  }
+  return attribution;
+}
+
+function examplePanel(word: string) {
+  const details = el("details", "examples") as HTMLDetailsElement;
+  details.append(el("summary", "examples-toggle", "例句"));
+  const body = el("div", "examples-body");
+  details.append(body);
+
+  let loaded = false;
+  details.addEventListener("toggle", () => {
+    if (!details.open || loaded) return;
+    loaded = true;
+    body.append(el("div", "examples-status", "正在加载在线例句…"));
+
+    exampleRequest?.abort();
+    const request = new AbortController();
+    exampleRequest = request;
+    void fetchOnlineExamples(word, request.signal).then(
+      ({ sentences, sourceUrl }) => {
+        if (request.signal.aborted) return;
+        body.replaceChildren();
+        if (!sentences.length) {
+          body.append(el("div", "examples-status", "暂无在线例句"));
+          return;
+        }
+
+        const list = el("ol", "example-list");
+        for (const sentence of sentences) list.append(el("li", "example-item", sentence));
+        body.append(list, exampleAttribution(sourceUrl));
+      },
+      (error: Error) => {
+        if (error.name === "AbortError") return;
+        body.replaceChildren(el("div", "examples-status failed", "在线例句暂时不可用"));
+      },
+    ).finally(() => {
+      if (exampleRequest === request) exampleRequest = null;
+    });
+  });
+  return details;
+}
+
 function lookup(word: string, rects: DOMRect[]) {
+  exampleRequest?.abort();
+  exampleRequest = null;
   showHighlight(rects);
 
   const entry = lookupWord(word);
@@ -770,11 +851,14 @@ function lookup(word: string, rects: DOMRect[]) {
   popupEl.append(
     entry ? el("div", "trans", entry.translation) : el("div", "empty", "词典未收录该词"),
   );
+  if (entry && onlineExamplesEnabled) popupEl.append(examplePanel(entry.word));
 
   popupEl.hidden = false;
 }
 
 function dismiss() {
+  exampleRequest?.abort();
+  exampleRequest = null;
   popupEl.hidden = true;
   document.getElementById("hl")?.remove();
 }

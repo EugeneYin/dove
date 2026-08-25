@@ -23,6 +23,7 @@ PDF.js 在 canvas 之上会额外铺一层透明的 `<span>` 文本层，每段�
 | `src/wordbook.ts` | 单词本本地存储与多行释义归一化（localStorage） |
 | `src/word.ts` | 屏幕坐标 → 单词，含连字符拼接与所有格剥离 |
 | `src/dict.ts` | 词典加载与查询，含词形还原 |
+| `src/examples.ts` | 可选在线例句查询与响应归一化 |
 | `src/ocr.ts` | Tesseract 识别，并把结果合成为文本层 |
 | `src/speech.ts` | 音色挑选与朗读 |
 | `src/polyfills.ts` | ReadableStream 异步迭代（WebKit 需要） |
