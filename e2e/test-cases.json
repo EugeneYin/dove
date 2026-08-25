@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "baselineAppVersion": "2.1.1",
+  "baselineAppVersion": "3.0.0",
   "suite": {
     "id": "pwa-offline",
     "runner": "playwright",
@@ -89,6 +89,24 @@
         "name": "最近打开限制为日期倒序五项",
         "introducedIn": "2.1.1",
         "protects": "文件抽屉只显示最近打开的五个文件名，且最新记录排在最前"
+      },
+      {
+        "id": "PWA-015",
+        "name": "打开单词本并自动补全词条",
+        "introducedIn": "3.0.0",
+        "protects": "顶栏入口能打开三列表格，并由离线词典自动补全音标和词性与含义"
+      },
+      {
+        "id": "PWA-016",
+        "name": "查无结果时手填并管理删除",
+        "introducedIn": "3.0.0",
+        "protects": "未收录单词可手动填写，多行含义合并为一行，并能通过管理复选框删除"
+      },
+      {
+        "id": "PWA-017",
+        "name": "离线重启后恢复单词本",
+        "introducedIn": "3.0.0",
+        "protects": "本地保存的单词在服务器关闭并冷启动后仍可恢复"
       }
     ]
   }

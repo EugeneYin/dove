@@ -26,24 +26,29 @@
   </head>
   <body>
     <header id="bar">
-      <div class="bar-region menu-shell menu-left">
-        <button
-          id="file-menu"
-          class="top-menu"
-          type="button"
-          aria-expanded="false"
-          aria-controls="file-drawer"
-        >
-          文件
-        </button>
-        <div id="file-drawer" class="drawer" hidden>
-          <button id="open-file" class="drawer-action" type="button">打开 PDF</button>
-          <input type="file" id="file" accept="application/pdf" hidden />
-          <div class="drawer-section">
-            <div class="drawer-title">最近打开</div>
-            <div id="recent" class="recent-list" aria-live="polite"></div>
+      <div class="bar-region menu-left">
+        <div class="menu-shell">
+          <button
+            id="file-menu"
+            class="top-menu"
+            type="button"
+            aria-expanded="false"
+            aria-controls="file-drawer"
+          >
+            文件
+          </button>
+          <div id="file-drawer" class="drawer" hidden>
+            <button id="open-file" class="drawer-action" type="button">打开 PDF</button>
+            <input type="file" id="file" accept="application/pdf" hidden />
+            <div class="drawer-section">
+              <div class="drawer-title">最近打开</div>
+              <div id="recent" class="recent-list" aria-live="polite"></div>
+            </div>
           </div>
         </div>
+        <button id="wordbook-menu" class="top-menu" type="button" aria-pressed="false">
+          单词本
+        </button>
       </div>
 
       <div class="bar-region page-controls" aria-label="翻页">
@@ -88,6 +93,67 @@
       </div>
       <p id="hint">选择一个 PDF 文件开始，长按单词查词</p>
     </main>
+
+    <main id="wordbook-page" hidden>
+      <div class="wordbook-heading">
+        <div>
+          <h1>单词本</h1>
+          <p id="wordbook-count">0 个单词</p>
+        </div>
+        <div class="wordbook-actions">
+          <button id="wordbook-back" class="secondary-button" type="button">返回阅读</button>
+          <button id="wordbook-manage" class="secondary-button" type="button" aria-pressed="false">
+            管理
+          </button>
+          <button id="wordbook-delete" class="danger-button" type="button" hidden disabled>
+            删除
+          </button>
+        </div>
+      </div>
+
+      <div class="wordbook-table-wrap">
+        <table class="wordbook-table">
+          <colgroup>
+            <col class="wordbook-select-col" />
+            <col class="wordbook-word-col" />
+            <col class="wordbook-phonetic-col" />
+            <col />
+          </colgroup>
+          <thead>
+            <tr>
+              <th class="wordbook-select-cell" scope="col"><span class="sr-only">选择</span></th>
+              <th scope="col">单词</th>
+              <th scope="col">音标</th>
+              <th scope="col">词性与含义</th>
+            </tr>
+          </thead>
+          <tbody id="wordbook-list"></tbody>
+        </table>
+        <p id="wordbook-empty" class="wordbook-empty">单词本还是空的，点击下方加号添加第一个单词。</p>
+      </div>
+
+      <button id="wordbook-add" class="wordbook-add" type="button" aria-label="添加单词">＋</button>
+    </main>
+
+    <dialog id="wordbook-editor" class="wordbook-editor">
+      <form id="wordbook-form">
+        <div class="editor-heading">
+          <h2>添加单词</h2>
+          <button id="wordbook-cancel" class="icon-button" type="button" aria-label="关闭">×</button>
+        </div>
+        <label for="wordbook-word">单词</label>
+        <input id="wordbook-word" name="word" type="text" autocomplete="off" required />
+        <p id="wordbook-lookup-status" class="lookup-status" aria-live="polite"></p>
+
+        <label for="wordbook-phonetic">音标</label>
+        <input id="wordbook-phonetic" name="phonetic" type="text" autocomplete="off" />
+
+        <label for="wordbook-meaning">词性与含义</label>
+        <textarea id="wordbook-meaning" name="meaning" rows="4"></textarea>
+
+        <button class="primary-button" type="submit">保存</button>
+      </form>
+    </dialog>
 
     <div id="popup" hidden></div>
 

@@ -184,6 +184,27 @@ export async function runDeviceFlow(page: Page, testInfo: TestInfo) {
     await page.getByRole("button", { name: "设置", exact: true }).click();
   });
 
+  await test.step("DEVICE-008 单词本入口与窄屏表格", async () => {
+    const regions = await page.locator("#bar").evaluate(() => {
+      const box = (id: string) => document.getElementById(id)?.getBoundingClientRect();
+      return { wordbook: box("wordbook-menu"), prev: box("prev") };
+    });
+    expect(regions.wordbook?.right).toBeLessThanOrEqual(regions.prev?.left ?? 0);
+
+    await page.getByRole("button", { name: "单词本", exact: true }).click();
+    await expect(page.locator("#wordbook-page")).toBeVisible();
+    await expect(page.getByLabel("翻页")).toBeHidden();
+    const layout = await page.locator("#wordbook-page").evaluate((node) => ({
+      pageRight: node.getBoundingClientRect().right,
+      viewportWidth: document.documentElement.clientWidth,
+      tableRight: node.querySelector("table")?.getBoundingClientRect().right ?? 0,
+    }));
+    expect(layout.pageRight).toBeLessThanOrEqual(layout.viewportWidth);
+    expect(layout.tableRight).toBeLessThanOrEqual(layout.viewportWidth);
+    await expect(page.getByRole("button", { name: "添加单词" })).toBeVisible();
+    await page.getByRole("button", { name: "返回阅读" }).click();
+  });
+
   let cached = false;
   if (REAL_DEVICE) {
     const result = await prefetch(page);

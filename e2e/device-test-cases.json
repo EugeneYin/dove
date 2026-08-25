@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "baselineAppVersion": "2.1.1",
+  "baselineAppVersion": "3.0.0",
   "suite": {
     "id": "pwa-devices",
     "runner": "playwright",
@@ -47,6 +47,12 @@
         "name": "顶部菜单抽屉兼容性",
         "introducedIn": "2.1.1",
         "protects": "桌面与触屏视口都能打开互斥的文件和设置抽屉"
+      },
+      {
+        "id": "DEVICE-008",
+        "name": "单词本入口与窄屏表格",
+        "introducedIn": "3.0.0",
+        "protects": "单词本入口不与翻页控件重叠，页面与三列表格不超出目标设备视口"
       }
     ]
   }

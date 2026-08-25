@@ -184,6 +184,57 @@ test.describe("PWA 离线完整链路", () => {
       await expect(page.locator("#settings-drawer")).toBeHidden();
     });
 
+    await test.step("PWA-015 打开单词本并自动补全词条", async () => {
+      await waitForDictionary(page);
+      await page.getByRole("button", { name: "单词本", exact: true }).click();
+      await expect(page.locator("#wordbook-page")).toBeVisible();
+      await expect(page.locator("#viewer")).toBeHidden();
+      await expect(page.getByLabel("翻页")).toBeHidden();
+      await expect(page.locator(".wordbook-table th:not(.wordbook-select-cell)")).toHaveText([
+        "单词",
+        "音标",
+        "词性与含义",
+      ]);
+
+      await page.getByRole("button", { name: "添加单词" }).click();
+      await page.locator("#wordbook-word").fill("convey");
+      await expect(page.locator("#wordbook-lookup-status")).toContainText("已从离线词典补全");
+      await expect(page.locator("#wordbook-phonetic")).not.toHaveValue("");
+      await expect(page.locator("#wordbook-meaning")).not.toHaveValue("");
+      await page.getByRole("button", { name: "保存" }).click();
+
+      const row = page.locator("#wordbook-list tr", { hasText: "convey" });
+      await expect(row).toBeVisible();
+      await expect(row.locator("td:not(.wordbook-select-cell)")).toHaveCount(3);
+      const meaningStyle = await row.locator(".wordbook-cell-scroll").last().evaluate((node) => ({
+        overflowX: getComputedStyle(node).overflowX,
+        whiteSpace: getComputedStyle(node).whiteSpace,
+      }));
+      expect.soft(meaningStyle).toEqual({ overflowX: "auto", whiteSpace: "nowrap" });
+    });
+
+    await test.step("PWA-016 查无结果时手填并管理删除", async () => {
+      await page.getByRole("button", { name: "添加单词" }).click();
+      await page.locator("#wordbook-word").fill("codexmissingword");
+      await expect(page.locator("#wordbook-lookup-status")).toContainText("请手动填写");
+      await page.locator("#wordbook-phonetic").fill("manual-phonetic");
+      await page.locator("#wordbook-meaning").fill("n. 第一行\nv. 第二行");
+      await page.getByRole("button", { name: "保存" }).click();
+
+      const manualRow = page.locator("#wordbook-list tr", { hasText: "codexmissingword" });
+      await expect(manualRow).toContainText("manual-phonetic");
+      await expect(manualRow).toContainText("n. 第一行；v. 第二行");
+
+      await page.getByRole("button", { name: "管理", exact: true }).click();
+      await expect(page.locator("#wordbook-list input[type=checkbox]")).toHaveCount(2);
+      await page.getByRole("checkbox", { name: "选择 convey" }).check();
+      await page.getByRole("button", { name: "删除（1）" }).click();
+      await expect(page.locator("#wordbook-list tr")).toHaveCount(1);
+      await expect(manualRow).toBeVisible();
+      await page.getByRole("button", { name: "返回阅读" }).click();
+      await expect(page.locator("#viewer")).toBeVisible();
+    });
+
     const prefetch = await page.evaluate(
       () =>
         new Promise<{ done: number; failed: number; failures: string[] }>((done, reject) => {
@@ -245,6 +296,17 @@ test.describe("PWA 离线完整链路", () => {
     await test.step("PWA-004 离线加载词典", async () => {
       await waitForDictionary(page);
       expect.soft(await page.locator("body").getAttribute("data-dict")).toBe("ready");
+    });
+
+    await test.step("PWA-017 离线重启后恢复单词本", async () => {
+      await page.getByRole("button", { name: "单词本", exact: true }).click();
+      await expect(page.locator("#wordbook-list tr")).toHaveCount(1);
+      await expect(page.locator("#wordbook-list tr")).toContainText("codexmissingword");
+      const stored = await page.evaluate(() =>
+        JSON.parse(localStorage.getItem("dove.wordbook.v1") ?? "[]"),
+      );
+      expect.soft(stored).toHaveLength(1);
+      await page.getByRole("button", { name: "返回阅读" }).click();
     });
 
     await test.step("PWA-005 离线列出最近文档", async () => {

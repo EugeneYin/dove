@@ -20,6 +20,7 @@ PDF.js 在 canvas 之上会额外铺一层透明的 `<span>` 文本层，每段�
 | `src/diag.ts` | 自诊断面板：环境、能力自检、缓存明细、日志（v2.1） |
 | `src/sw.js` | Service Worker：预缓存、请求拦截、分享目标、缓存明细上报 |
 | `src/library.ts` | 最近文档与阅读位置（IndexedDB） |
+| `src/wordbook.ts` | 单词本本地存储与多行释义归一化（localStorage） |
 | `src/word.ts` | 屏幕坐标 → 单词，含连字符拼接与所有格剥离 |
 | `src/dict.ts` | 词典加载与查询，含词形还原 |
 | `src/ocr.ts` | Tesseract 识别，并把结果合成为文本层 |
