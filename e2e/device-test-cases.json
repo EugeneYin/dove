@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "baselineAppVersion": "2.1.1",
+  "baselineAppVersion": "2.1.2",
   "suite": {
     "id": "pwa-devices",
     "runner": "playwright",
@@ -47,6 +47,12 @@
         "name": "顶部菜单抽屉兼容性",
         "introducedIn": "2.1.1",
         "protects": "桌面与触屏视口都能打开互斥的文件和设置抽屉"
+      },
+      {
+        "id": "DEVICE-008",
+        "name": "在线例句开关与折叠词卡",
+        "introducedIn": "2.1.2",
+        "protects": "桌面和触屏设备都能开启在线例句、展开词卡并看到最多两条例句"
       }
     ]
   }
