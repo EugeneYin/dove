@@ -428,6 +428,97 @@ jobs:
           echo "- Candidate deployment: ${{ needs.deploy.outputs.url }}" >> "$GITHUB_STEP_SUMMARY"
           echo "- Fixed acceptance URL: $STAGE_URL" >> "$GITHUB_STEP_SUMMARY"
 
+  master-promote:
+    name: Promote verified build to master site
+    needs: [test, deploy, device-smoke]
+    if: github.event_name == 'push' && github.ref_name == 'master'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment:
+      name: master-live
+      url: https://dove-master.pages.dev
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 10.33.0
+          run_install: false
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build offline dictionary
+        run: pnpm run dict
+
+      - name: Build production bundle
+        run: pnpm run build
+
+      - name: Ensure master Pages project exists
+        env:
+          ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          PROJECT_NAME: dove-master
+        run: |
+          response="$RUNNER_TEMP/cloudflare-master-project.json"
+          endpoint="https://api.cloudflare.com/client/v4/accounts/$ACCOUNT_ID/pages/projects/$PROJECT_NAME"
+          status=$(curl --silent --show-error --output "$response" --write-out '%{http_code}' \
+            --header "Authorization: Bearer $API_TOKEN" \
+            "$endpoint")
+
+          if [[ "$status" == "404" ]]; then
+            status=$(curl --silent --show-error --output "$response" --write-out '%{http_code}' \
+              --request POST \
+              --header "Authorization: Bearer $API_TOKEN" \
+              --header "Content-Type: application/json" \
+              --data '{"name":"dove-master","production_branch":"master"}' \
+              "https://api.cloudflare.com/client/v4/accounts/$ACCOUNT_ID/pages/projects")
+          fi
+
+          [[ "$status" == "200" || "$status" == "201" ]] || {
+            echo "Cloudflare master project setup failed (HTTP $status)."
+            jq '{success, errors, messages}' "$response"
+            exit 1
+          }
+
+      - name: Deploy verified SHA to master site
+        id: master-deploy
+        uses: cloudflare/wrangler-action@v4
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          packageManager: pnpm
+          wranglerVersion: "4.125.0"
+          command: pages deploy dist --project-name=dove-master --branch=master
+
+      - name: Verify fixed master URL
+        env:
+          DEPLOYMENT_URL: ${{ steps.master-deploy.outputs.deployment-url }}
+          MASTER_URL: https://dove-master.pages.dev
+        run: |
+          for resource in / /manifest.webmanifest /sw.js /dict.json.gz; do
+            name=${resource#/}
+            [[ -n "$name" ]] || name=index.html
+            curl --fail --location --retry 12 --retry-all-errors --retry-delay 5 \
+              "$DEPLOYMENT_URL$resource" --output "$RUNNER_TEMP/deployment-$name"
+            curl --fail --location --retry 12 --retry-all-errors --retry-delay 5 \
+              "$MASTER_URL$resource" --output "$RUNNER_TEMP/master-$name"
+            cmp "$RUNNER_TEMP/deployment-$name" "$RUNNER_TEMP/master-$name"
+          done
+
+          echo "### Dove master live acceptance" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Application: v${{ needs.test.outputs.app_version }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Commit: ${{ github.sha }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Candidate deployment: ${{ needs.deploy.outputs.url }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Master deployment: $DEPLOYMENT_URL" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Fixed live URL: $MASTER_URL" >> "$GITHUB_STEP_SUMMARY"
+
   real-devices:
     name: BrowserStack real devices
     needs: [test, deploy]
