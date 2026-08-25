@@ -132,6 +132,11 @@ capability，并在变更说明中记录查询日期、替代设备和旧/新版
 更新 PR 会运行本地基线、Pages Preview 和四端模拟；真机只在默认分支 push、每日计划任务或
 手动选择 `real_devices=true` 时运行，避免功能分支消耗真机分钟数。
 
+用户验收使用 `stage` 分支和独立的 `dove-stage` Pages 项目。工作流必须先在候选 Preview 上完成
+baseline 与四端模拟，再执行 `stage-promote`；只有固定地址 `https://stage.dove.ethanyin.com` 的首页、
+manifest、Service Worker 和词典探针全部成功后，才可以把该地址作为验收链接。开发期间的 localhost、
+Quick Tunnel 和单次 deployment URL 都不能替代固定验收地址。
+
 ```bash
 git push origin feat/v2.1-diagnostics
 gh run list --workflow pwa-e2e.yml --branch feat/v2.1-diagnostics --limit 5

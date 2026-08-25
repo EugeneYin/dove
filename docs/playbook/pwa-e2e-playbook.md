@@ -240,6 +240,19 @@ GitHub Artifact 保留 90 天，Git tag/commit 是永久索引。发布版本应
 
 这样才能从某条失败回到当时的代码、产物、设备和用例定义。
 
+### Stage 验收链接
+
+验收版本通过 `stage` 分支发布到独立的 `dove-stage` Pages 项目。`stage-promote` 只在同一提交的
+baseline、Cloudflare 候选部署和四端模拟全部成功后执行，并验证以下固定地址：
+
+- `https://stage.dove.ethanyin.com/`
+- `https://stage.dove.ethanyin.com/manifest.webmanifest`
+- `https://stage.dove.ethanyin.com/sw.js`
+- `https://stage.dove.ethanyin.com/dict.json.gz`
+
+交付验收时应提供固定地址、`stage` 完整 Git SHA、应用版本和 GitHub Actions Run。localhost、
+Quick Tunnel、单次 deployment URL 或仅在本机打开的报告都不是用户验收链接。
+
 ## 9. 局限性
 
 - Playwright 设备模拟不是 iPhone/iPad/Android Pad 真机。
