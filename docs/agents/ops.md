@@ -138,8 +138,9 @@ manifest、Service Worker 和词典探针全部成功后，才可以把该地址
 Quick Tunnel 和单次 deployment URL 都不能替代固定验收地址。
 
 首次绑定固定域名时，`stage.dove.ethanyin.com` 需要一条指向 `dove-stage.pages.dev` 的 Proxied CNAME。
-工作流会在 Cloudflare Token 同时具备 Zone Read 与 DNS Write 时自动创建；若 Token 仅有 Pages 权限，
-由域名管理员一次性添加该记录即可，后续发布检测到域名已解析后不会再要求 DNS 写权限。
+由域名管理员一次性添加该记录并在 Pages 项目中绑定自定义域名。日常 GitHub Actions Token 只保留
+目标 Account 的 Cloudflare Pages Edit，不授予 Zone Read 或 DNS Write；后续发布用固定 URL 探针确认
+DNS 和域名绑定仍然有效，不在日常部署中修改 DNS。
 
 ```bash
 git push origin feat/v2.1-diagnostics
