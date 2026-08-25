@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "baselineAppVersion": "2.1.1",
+  "baselineAppVersion": "2.1.2",
   "suite": {
     "id": "pwa-offline",
     "runner": "playwright",
@@ -89,6 +89,12 @@
         "name": "最近打开限制为日期倒序五项",
         "introducedIn": "2.1.1",
         "protects": "文件抽屉只显示最近打开的五个文件名，且最新记录排在最前"
+      },
+      {
+        "id": "PWA-015",
+        "name": "在线例句开关与折叠词卡",
+        "introducedIn": "2.1.2",
+        "protects": "在线例句默认关闭、选择可持久化，开启后按需加载并最多显示两条例句"
       }
     ]
   }

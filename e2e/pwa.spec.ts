@@ -138,6 +138,7 @@ test.describe("PWA 离线完整链路", () => {
       await page.getByRole("button", { name: "设置", exact: true }).click();
       await expect(page.locator("#file-drawer")).toBeHidden();
       await expect(page.locator("#settings-drawer")).toBeVisible();
+      await expect(page.getByRole("switch", { name: /在线例句/ })).not.toBeChecked();
       const menuButtons = await page.locator("#settings-drawer > button").evaluateAll((buttons) =>
         buttons.map((button) => ({
           text: button.querySelector(".button-label")?.textContent ?? button.textContent,
@@ -227,6 +228,75 @@ test.describe("PWA 离线完整链路", () => {
     await expect(page.locator("#pager")).toHaveText("2 / 3");
     await page.keyboard.press("ArrowRight");
     await expect(page.locator("#pager")).toHaveText("3 / 3");
+
+    await test.step("PWA-015 在线例句开关与折叠词卡", async () => {
+      let requests = 0;
+      await page.route("https://freedictionaryapi.com/api/v1/entries/en/gamma", async (route) => {
+        requests += 1;
+        await route.fulfill({
+          contentType: "application/json",
+          body: JSON.stringify({
+            word: "gamma",
+            entries: [
+              {
+                senses: [
+                  {
+                    examples: [
+                      "Gamma rays have very high energy.",
+                      "The detector measured a gamma burst.",
+                      "This third example must not be shown.",
+                    ],
+                    subsenses: [],
+                  },
+                ],
+              },
+            ],
+            source: { url: "https://en.wiktionary.org/wiki/gamma" },
+          }),
+        });
+      });
+
+      expect((await lookUp(page, "gamma"))?.word).toBe("gamma");
+      await expect(page.locator("#popup .examples")).toHaveCount(0);
+      expect(requests).toBe(0);
+
+      await page.getByRole("button", { name: "设置", exact: true }).click();
+      const toggle = page.getByRole("switch", { name: /在线例句/ });
+      await toggle.check();
+      await expect(toggle).toBeChecked();
+      expect(await page.evaluate(() => localStorage.getItem("dove.onlineExamples"))).toBe("1");
+
+      await page.reload({ waitUntil: "domcontentloaded" });
+      await page.getByRole("button", { name: "设置", exact: true }).click();
+      await expect(toggle).toBeChecked();
+      await page.getByRole("button", { name: "设置", exact: true }).click();
+      await page.locator("#file").setInputFiles(SAMPLE_PAGES);
+      await waitForTextLayer(page);
+
+      expect((await lookUp(page, "gamma"))?.word).toBe("gamma");
+      const examples = page.locator("#popup .examples");
+      await expect(examples).toBeVisible();
+      await expect(examples).not.toHaveAttribute("open", "");
+      expect(requests).toBe(0);
+
+      await examples.locator("summary").click();
+      await expect(examples.locator(".example-item")).toHaveText([
+        "Gamma rays have very high energy.",
+        "The detector measured a gamma burst.",
+      ]);
+      await expect(examples.locator(".example-source")).toContainText(
+        "FreeDictionaryAPI.com · Wiktionary",
+      );
+      expect(requests).toBe(1);
+
+      await page.getByRole("button", { name: "设置", exact: true }).click();
+      await toggle.uncheck();
+      await expect(toggle).not.toBeChecked();
+      await page.getByRole("button", { name: "设置", exact: true }).click();
+      expect((await lookUp(page, "gamma"))?.word).toBe("gamma");
+      await expect(page.locator("#popup .examples")).toHaveCount(0);
+      expect(requests).toBe(1);
+    });
 
     await page.locator("#file").setInputFiles(SAMPLE_SCANNED);
     await waitForTextLayer(page, 5, 120_000);
