@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "baselineAppVersion": "3.0.0",
+  "baselineAppVersion": "3.0.1",
   "suite": {
     "id": "pwa-offline",
     "runner": "playwright",
@@ -113,6 +113,12 @@
         "name": "离线重启后恢复单词本",
         "introducedIn": "3.0.0",
         "protects": "本地保存的单词在服务器关闭并冷启动后仍可恢复"
+      },
+      {
+        "id": "PWA-019",
+        "name": "再次访问时提示等待中的新版本",
+        "introducedIn": "3.0.1",
+        "protects": "用户错过 updatefound 后再次打开页面，仍能发现 waiting Worker 并切换到新版"
       }
     ]
   }
