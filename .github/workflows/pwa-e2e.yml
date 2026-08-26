@@ -30,14 +30,14 @@ jobs:
       app_version: ${{ steps.version.outputs.app_version }}
 
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
-      - uses: pnpm/action-setup@v6
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
         with:
           version: 10.33.0
           run_install: false
 
-      - uses: actions/setup-node@v7
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
           node-version: 24
           cache: pnpm
@@ -70,7 +70,7 @@ jobs:
 
       - name: Archive versioned E2E evidence
         if: always()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
           name: dove-pwa-e2e-v${{ steps.version.outputs.app_version }}-${{ github.sha }}
           path: |
@@ -91,14 +91,14 @@ jobs:
       url: ${{ steps.deploy.outputs.deployment-url }}
 
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
-      - uses: pnpm/action-setup@v6
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
         with:
           version: 10.33.0
           run_install: false
 
-      - uses: actions/setup-node@v7
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
           node-version: 24
           cache: pnpm
@@ -178,7 +178,7 @@ jobs:
       - name: Deploy to Cloudflare Pages
         if: steps.cloudflare.outputs.enabled == 'true'
         id: deploy
-        uses: cloudflare/wrangler-action@v4
+        uses: cloudflare/wrangler-action@ebbaa1584979971c8614a24965b4405ff95890e0 # v4
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
@@ -202,14 +202,14 @@ jobs:
     timeout-minutes: 35
 
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
-      - uses: pnpm/action-setup@v6
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
         with:
           version: 10.33.0
           run_install: false
 
-      - uses: actions/setup-node@v7
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
           node-version: 24
           cache: pnpm
@@ -232,7 +232,7 @@ jobs:
 
       - name: Archive device smoke evidence
         if: always()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
           name: dove-device-smoke-${{ github.sha }}
           path: |
@@ -253,14 +253,14 @@ jobs:
       url: https://stage.dove.ethanyin.com
 
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
-      - uses: pnpm/action-setup@v6
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
         with:
           version: 10.33.0
           run_install: false
 
-      - uses: actions/setup-node@v7
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
           node-version: 24
           cache: pnpm
@@ -303,7 +303,7 @@ jobs:
 
       - name: Deploy verified SHA to stage
         id: stage-deploy
-        uses: cloudflare/wrangler-action@v4
+        uses: cloudflare/wrangler-action@ebbaa1584979971c8614a24965b4405ff95890e0 # v4
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
@@ -311,121 +311,26 @@ jobs:
           wranglerVersion: "4.125.0"
           command: pages deploy dist --project-name=dove-stage --branch=stage
 
-      - name: Ensure stage DNS CNAME
-        env:
-          ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          ZONE_NAME: ethanyin.com
-          STAGE_DOMAIN: stage.dove.ethanyin.com
-          CNAME_TARGET: dove-stage.pages.dev
-        run: |
-          if getent ahosts "$STAGE_DOMAIN" >/dev/null; then
-            echo "$STAGE_DOMAIN already resolves; keeping the existing DNS record."
-            exit 0
-          fi
-
-          response="$RUNNER_TEMP/cloudflare-stage-dns.json"
-          zone_status=$(curl --silent --show-error --get --output "$response" --write-out '%{http_code}' \
-            --header "Authorization: Bearer $API_TOKEN" \
-            --data-urlencode "name=$ZONE_NAME" \
-            --data-urlencode "account.id=$ACCOUNT_ID" \
-            "https://api.cloudflare.com/client/v4/zones")
-          zone_id=$(jq -r '.result[0].id // empty' "$response")
-
-          [[ "$zone_status" == "200" && -n "$zone_id" ]] || {
-            echo "Cloudflare zone lookup failed (HTTP $zone_status). The token needs Zone Read and DNS Write for $ZONE_NAME."
-            jq '{success, errors, messages}' "$response"
-            exit 1
-          }
-
-          endpoint="https://api.cloudflare.com/client/v4/zones/$zone_id/dns_records"
-          record_status=$(curl --silent --show-error --get --output "$response" --write-out '%{http_code}' \
-            --header "Authorization: Bearer $API_TOKEN" \
-            --data-urlencode "type=CNAME" \
-            --data-urlencode "name=$STAGE_DOMAIN" \
-            "$endpoint")
-          record_id=$(jq -r '.result[0].id // empty' "$response")
-          record_target=$(jq -r '.result[0].content // empty' "$response")
-
-          [[ "$record_status" == "200" ]] || {
-            echo "Cloudflare DNS lookup failed (HTTP $record_status)."
-            jq '{success, errors, messages}' "$response"
-            exit 1
-          }
-
-          if [[ -n "$record_id" && "$record_target" != "$CNAME_TARGET" ]]; then
-            echo "$STAGE_DOMAIN already exists with a different target; refusing to overwrite it."
-            exit 1
-          fi
-
-          if [[ -z "$record_id" ]]; then
-            record_status=$(curl --silent --show-error --output "$response" --write-out '%{http_code}' \
-              --request POST \
-              --header "Authorization: Bearer $API_TOKEN" \
-              --header "Content-Type: application/json" \
-              --data "{\"type\":\"CNAME\",\"name\":\"$STAGE_DOMAIN\",\"content\":\"$CNAME_TARGET\",\"ttl\":1,\"proxied\":true,\"comment\":\"Dove fixed stage acceptance URL\"}" \
-              "$endpoint")
-            [[ "$record_status" == "200" || "$record_status" == "201" ]] || {
-              echo "Cloudflare DNS creation failed (HTTP $record_status)."
-              jq '{success, errors, messages}' "$response"
-              exit 1
-            }
-          fi
-
-      - name: Attach fixed stage domain
-        env:
-          ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          PROJECT_NAME: dove-stage
-          STAGE_DOMAIN: stage.dove.ethanyin.com
-        run: |
-          response="$RUNNER_TEMP/cloudflare-stage-domain.json"
-          endpoint="https://api.cloudflare.com/client/v4/accounts/$ACCOUNT_ID/pages/projects/$PROJECT_NAME/domains"
-          status=$(curl --silent --show-error --output "$response" --write-out '%{http_code}' \
-            --header "Authorization: Bearer $API_TOKEN" \
-            "$endpoint/$STAGE_DOMAIN")
-
-          if [[ "$status" == "404" ]]; then
-            status=$(curl --silent --show-error --output "$response" --write-out '%{http_code}' \
-              --request POST \
-              --header "Authorization: Bearer $API_TOKEN" \
-              --header "Content-Type: application/json" \
-              --data "{\"name\":\"$STAGE_DOMAIN\"}" \
-              "$endpoint")
-          fi
-
-          [[ "$status" == "200" || "$status" == "201" ]] || {
-            echo "Cloudflare stage domain setup failed (HTTP $status)."
-            jq '{success, errors, messages}' "$response"
-            exit 1
-          }
-
-          for attempt in {1..60}; do
-            curl --silent --show-error --output "$response" \
-              --header "Authorization: Bearer $API_TOKEN" \
-              "$endpoint/$STAGE_DOMAIN"
-            domain_status=$(jq -r '.result.status // "unknown"' "$response")
-            [[ "$domain_status" == "active" ]] && exit 0
-            sleep 10
-          done
-
-          echo "Cloudflare stage domain did not become active."
-          jq '{success, errors, messages, result: {name: .result.name, status: .result.status, validation_data: .result.validation_data, verification_data: .result.verification_data}}' "$response"
-          exit 1
-
       - name: Verify fixed stage URL
         env:
+          DEPLOYMENT_URL: ${{ steps.stage-deploy.outputs.deployment-url }}
           STAGE_URL: https://stage.dove.ethanyin.com
         run: |
           for resource in / /manifest.webmanifest /sw.js /dict.json.gz; do
+            name=${resource#/}
+            [[ -n "$name" ]] || name=index.html
             curl --fail --location --retry 12 --retry-all-errors --retry-delay 5 \
-              "$STAGE_URL$resource" --output /dev/null
+              "$DEPLOYMENT_URL$resource" --output "$RUNNER_TEMP/deployment-$name"
+            curl --fail --location --retry 12 --retry-all-errors --retry-delay 5 \
+              "$STAGE_URL$resource" --output "$RUNNER_TEMP/stage-$name"
+            cmp "$RUNNER_TEMP/deployment-$name" "$RUNNER_TEMP/stage-$name"
           done
 
           echo "### Dove stage acceptance" >> "$GITHUB_STEP_SUMMARY"
           echo "- Application: v${{ needs.test.outputs.app_version }}" >> "$GITHUB_STEP_SUMMARY"
           echo "- Commit: ${{ github.sha }}" >> "$GITHUB_STEP_SUMMARY"
           echo "- Candidate deployment: ${{ needs.deploy.outputs.url }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Stage deployment: $DEPLOYMENT_URL" >> "$GITHUB_STEP_SUMMARY"
           echo "- Fixed acceptance URL: $STAGE_URL" >> "$GITHUB_STEP_SUMMARY"
 
   master-promote:
@@ -567,14 +472,14 @@ jobs:
     timeout-minutes: 90
 
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
-      - uses: pnpm/action-setup@v6
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
         with:
           version: 10.33.0
           run_install: false
 
-      - uses: actions/setup-node@v7
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
           node-version: 24
           cache: pnpm
@@ -608,7 +513,7 @@ jobs:
 
       - name: Archive real-device evidence
         if: always() && steps.browserstack.outputs.enabled == 'true'
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
           name: dove-browserstack-v${{ needs.test.outputs.app_version }}-${{ github.sha }}
           path: |
