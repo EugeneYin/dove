@@ -285,8 +285,8 @@ Quick Tunnel、单次 deployment URL 或仅在本机打开的报告都不是用�
 ### Master 长久在线地址
 
 `master` push 使用相同的 baseline、候选 Preview 和四端模拟门禁。三项全部成功后，`master-promote`
-把该 SHA 的构建发布到独立的 `dove-master` Pages 项目，并逐一比较不可变 deployment URL 与以下
-Pages 固定地址的响应体：
+把该 SHA 的构建发布到独立的 `dove-master` Pages 项目，并逐一比较不可变 deployment URL、Pages
+固定地址和对外自定义域的响应体：
 
 - `https://dove-master.pages.dev/`
 - `https://dove-master.pages.dev/manifest.webmanifest`
@@ -294,9 +294,10 @@ Pages 固定地址的响应体：
 - `https://dove-master.pages.dev/dict.json.gz`
 
 对外长期地址是 `https://master.dove.ethanyin.com`，它已通过 Proxied CNAME 绑定到
-`dove-master.pages.dev`。对外交付时探测同样的四个资源，并与 Pages 固定地址逐一比较响应体。因此两个
-地址都表示最近一次成功发布的 `master`，而不是绕过测试强制展示失败构建。自定义域属于一次性基础
-设施配置，不作为日常发布门禁；工作流 Token 不需要 DNS Write。
+`dove-master.pages.dev`。每次 `master-promote` 都探测同样的四个资源，并与本次不可变 deployment
+逐一比较响应体；每日计划任务还会检查自定义域与 Pages 固定地址仍然逐字节一致。因此两个地址都表示
+最近一次成功发布的 `master`，而不是绕过测试强制展示失败构建。CNAME 与 Pages 自定义域绑定仍是一次性
+基础设施配置，日常工作流只验收、不修改 DNS，Token 不需要 DNS Write。
 
 ## 9. 局限性
 
