@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "baselineAppVersion": "3.1.0",
+  "baselineAppVersion": "3.2.2",
   "suite": {
     "id": "pwa-offline",
     "runner": "playwright",
@@ -131,6 +131,30 @@
         "name": "词卡添加与确认删除",
         "introducedIn": "3.1.0",
         "protects": "双击或长按词卡可用加号加入单词本，已加入时显示本子图标且删除前确认"
+      },
+      {
+        "id": "PWA-022",
+        "name": "浏览在线文档库并打开 PDF",
+        "introducedIn": "3.2.0",
+        "protects": "GitHub 目录只显示子目录和 PDF，且在线 PDF 可进入现有阅读链路"
+      },
+      {
+        "id": "PWA-023",
+        "name": "新增、保存并导出在线文档源",
+        "introducedIn": "3.2.0",
+        "protects": "用户添加的 GitHub 源跨重载保存，并能与内置源一起导出为 JSON"
+      },
+      {
+        "id": "PWA-024",
+        "name": "GitHub API 限流时继续浏览在线目录",
+        "introducedIn": "3.2.1",
+        "protects": "匿名 GitHub API 额度耗尽后自动改用备用文件树，且后续目录浏览不再重复请求受限接口"
+      },
+      {
+        "id": "PWA-025",
+        "name": "选择已有单词本文件并继续写回",
+        "introducedIn": "3.2.2",
+        "protects": "选择已有文件使用打开窗口而非保存窗口，读取现有词条后仍能写回同一个文件"
       }
     ]
   }

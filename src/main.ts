@@ -22,8 +22,19 @@ import {
   restoreWordbookFile,
   saveWordbookFile,
   supportsWordbookFilePicker,
+  supportsWordbookOpenPicker,
 } from "./wordbook-file";
 import { fetchOnlineExamples } from "./examples";
+import {
+  DEFAULT_ONLINE_SOURCE,
+  addSource,
+  downloadOnlinePdf,
+  exportSources,
+  fetchOnlineDirectory,
+  loadAddedSources,
+  type OnlineEntry,
+  type OnlineSource,
+} from "./online-library";
 
 // 自己创建 worker，好让 polyfill 先于 pdfjs worker 执行
 pdfjs.GlobalWorkerOptions.workerPort = new Worker(new URL("./pdf-worker.ts", import.meta.url), {
@@ -66,8 +77,16 @@ const wordbookMeaningEl = $<HTMLTextAreaElement>("wordbook-meaning");
 const wordbookLookupStatusEl = $<HTMLParagraphElement>("wordbook-lookup-status");
 const wordbookFileSetupEl = $<HTMLElement>("wordbook-file-setup");
 const wordbookFileStatusEl = $<HTMLParagraphElement>("wordbook-file-status");
-const wordbookFileChooseEl = $<HTMLButtonElement>("wordbook-file-choose");
+const wordbookFileOpenEl = $<HTMLButtonElement>("wordbook-file-open");
+const wordbookFileCreateEl = $<HTMLButtonElement>("wordbook-file-create");
 const onlineExamplesEl = $<HTMLInputElement>("online-examples");
+const onlineLibraryEl = $<HTMLDivElement>("online-library");
+const onlineLibraryStatusEl = $<HTMLParagraphElement>("online-library-status");
+const onlineSourceFormEl = $<HTMLFormElement>("online-source-form");
+const onlineSourceUrlEl = $<HTMLInputElement>("online-source-url");
+const onlineSourceListEl = $<HTMLDivElement>("online-source-list");
+const onlineSourceStatusEl = $<HTMLParagraphElement>("online-source-status");
+const exportOnlineSourcesEl = $<HTMLButtonElement>("export-online-sources");
 
 const ONLINE_EXAMPLES_KEY = "dove.onlineExamples";
 let onlineExamplesEnabled = false;
@@ -276,6 +295,170 @@ async function showRecent() {
   }
 }
 
+// ---------------- 在线文档库 ----------------
+
+let addedOnlineSources: OnlineSource[] = [];
+try {
+  addedOnlineSources = loadAddedSources(localStorage);
+} catch {
+  // 浏览器完全禁用本地存储时仍保留内置源。
+}
+let onlineBrowser: { source: OnlineSource; path: string } | null = null;
+let onlineDirectoryToken = 0;
+
+const allOnlineSources = () => [DEFAULT_ONLINE_SOURCE, ...addedOnlineSources];
+
+function setInlineStatus(element: HTMLElement, message: string | null, isError = false) {
+  element.hidden = !message;
+  element.textContent = message ?? "";
+  element.classList.toggle("error", isError);
+}
+
+function onlineEntryButton(kind: string, name: string): HTMLButtonElement {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "online-library-entry";
+  button.append(el("span", "online-library-kind", kind), el("span", "online-library-name", name));
+  return button;
+}
+
+function renderOnlineSourceChoices() {
+  onlineBrowser = null;
+  onlineLibraryEl.replaceChildren();
+  for (const source of allOnlineSources()) {
+    const button = onlineEntryButton("源", source.name);
+    button.title = source.url;
+    button.addEventListener("click", () => void browseOnlineDirectory(source, source.path));
+    onlineLibraryEl.append(button);
+  }
+}
+
+function relativeOnlinePath(source: OnlineSource, path: string): string {
+  if (!source.path) return path;
+  if (path === source.path) return "";
+  return path.startsWith(`${source.path}/`) ? path.slice(source.path.length + 1) : path;
+}
+
+function renderOnlineBrowserFrame(source: OnlineSource, path: string): HTMLDivElement {
+  onlineLibraryEl.replaceChildren();
+
+  const relative = relativeOnlinePath(source, path);
+  const back = document.createElement("button");
+  back.type = "button";
+  back.className = "online-library-back";
+  back.textContent = relative ? "← 上一级" : "← 所有源";
+  back.addEventListener("click", () => {
+    if (!relative) return renderOnlineSourceChoices();
+    void browseOnlineDirectory(source, path.split("/").slice(0, -1).join("/"));
+  });
+
+  const label = el(
+    "div",
+    "online-library-path",
+    relative ? `${source.name} / ${relative}` : source.name,
+  );
+  label.title = label.textContent ?? "";
+
+  const toolbar = el("div", "online-library-toolbar");
+  toolbar.append(back, label);
+  const entries = el("div", "online-library-entries") as HTMLDivElement;
+  onlineLibraryEl.append(toolbar, entries);
+  return entries;
+}
+
+async function browseOnlineDirectory(source: OnlineSource, path: string) {
+  const token = ++onlineDirectoryToken;
+  onlineBrowser = { source, path };
+  setInlineStatus(onlineLibraryStatusEl, null);
+  const list = renderOnlineBrowserFrame(source, path);
+  list.append(el("p", "drawer-empty", "正在读取目录…"));
+
+  try {
+    const entries = await fetchOnlineDirectory(source, path);
+    if (token !== onlineDirectoryToken) return;
+    list.replaceChildren();
+    if (!entries.length) {
+      list.append(el("p", "drawer-empty", "这个目录里没有子目录或 PDF"));
+      return;
+    }
+
+    for (const entry of entries) {
+      const button = onlineEntryButton(entry.type === "dir" ? "目录" : "PDF", entry.name);
+      button.title = entry.type === "pdf" && entry.size ? `${entry.name} · ${size(entry.size)}` : entry.name;
+      if (entry.type === "dir") {
+        button.addEventListener("click", () => void browseOnlineDirectory(source, entry.path));
+      } else {
+        button.addEventListener("click", () => void openOnlinePdf(source, entry, button));
+      }
+      list.append(button);
+    }
+  } catch (error) {
+    if (token !== onlineDirectoryToken) return;
+    list.replaceChildren(el("p", "drawer-empty", "目录读取失败"));
+    setInlineStatus(onlineLibraryStatusEl, (error as Error).message, true);
+  }
+}
+
+async function openOnlinePdf(
+  source: OnlineSource,
+  entry: OnlineEntry,
+  button: HTMLButtonElement,
+) {
+  button.disabled = true;
+  setInlineStatus(onlineLibraryStatusEl, `正在下载 ${entry.name}…`);
+  try {
+    const file = await downloadOnlinePdf(source, entry);
+    setInlineStatus(onlineLibraryStatusEl, null);
+    await openFile(file);
+  } catch (error) {
+    setInlineStatus(onlineLibraryStatusEl, (error as Error).message, true);
+    button.disabled = false;
+  }
+}
+
+function renderOnlineSourceSettings() {
+  onlineSourceListEl.replaceChildren();
+  for (const [index, source] of allOnlineSources().entries()) {
+    const item = el(
+      "div",
+      "online-source-item",
+      `${index === 0 ? "内置" : "已添加"} · ${source.name}`,
+    );
+    item.title = source.url;
+    onlineSourceListEl.append(item);
+  }
+}
+
+onlineSourceFormEl.addEventListener("submit", (event) => {
+  event.preventDefault();
+  try {
+    addedOnlineSources = addSource(localStorage, addedOnlineSources, onlineSourceUrlEl.value);
+    const added = addedOnlineSources[addedOnlineSources.length - 1]!;
+    onlineSourceFormEl.reset();
+    setInlineStatus(onlineSourceStatusEl, `已添加 ${added.name}`);
+    renderOnlineSourceSettings();
+    if (!onlineBrowser) renderOnlineSourceChoices();
+  } catch (error) {
+    setInlineStatus(onlineSourceStatusEl, (error as Error).message, true);
+  }
+});
+
+exportOnlineSourcesEl.addEventListener("click", () => {
+  const blob = new Blob([exportSources(allOnlineSources())], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = "dove-online-sources.json";
+  document.body.append(anchor);
+  anchor.click();
+  anchor.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url));
+  setInlineStatus(onlineSourceStatusEl, `已导出 ${allOnlineSources().length} 个源`);
+});
+
+renderOnlineSourceChoices();
+renderOnlineSourceSettings();
+
 fileInput.addEventListener("change", () => {
   const file = fileInput.files?.[0];
   if (file) void openFile(file);
@@ -313,8 +496,13 @@ settingsMenuEl.addEventListener("click", () => {
 });
 
 document.addEventListener("click", (event) => {
-  const target = event.target;
-  if (target instanceof Element && target.closest(".menu-shell")) return;
+  if (
+    event
+      .composedPath()
+      .some((target) => target instanceof Element && target.classList.contains("menu-shell"))
+  ) {
+    return;
+  }
   closeDrawers();
 });
 
@@ -345,9 +533,15 @@ function cacheWordbook() {
 function syncWordbookFileSetup() {
   wordbookFileSetupEl.hidden = wordbookFileReady;
   if (wordbookFileReady) return;
-  wordbookFileStatusEl.textContent = supportsWordbookFilePicker()
-    ? "首次使用请先选择单词本文件；默认从 Documents 创建。"
-    : "当前浏览器不能直接写文件，将改为下载 dove-wordbook.json。";
+  const canOpen = supportsWordbookOpenPicker();
+  const canCreate = supportsWordbookFilePicker();
+  wordbookFileOpenEl.hidden = !canOpen;
+  wordbookFileCreateEl.textContent = canCreate ? "创建新文件" : "下载新文件";
+  wordbookFileStatusEl.textContent = canOpen
+    ? "请选择已有单词本，或创建一个新文件。"
+    : canCreate
+      ? "当前浏览器只能创建新的单词本文件。"
+      : "当前浏览器不能直接写文件，将改为下载 dove-wordbook.json。";
 }
 
 const wordbookFileRestore = restoreWordbookFile(wordbookEntries, localStorage).then(
@@ -367,16 +561,18 @@ const wordbookFileRestore = restoreWordbookFile(wordbookEntries, localStorage).t
 
 let wordbookFileChoice: Promise<boolean> | null = null;
 
-async function ensureWordbookFile(): Promise<boolean> {
+async function ensureWordbookFile(choice: "open" | "create" = "create"): Promise<boolean> {
   await wordbookFileRestore;
   if (wordbookFileReady) return true;
   if (wordbookFileChoice) return wordbookFileChoice;
 
   wordbookFileChoice = (async () => {
-    wordbookFileChooseEl.disabled = true;
-    wordbookFileStatusEl.textContent = "正在准备单词本文件…";
+    wordbookFileOpenEl.disabled = true;
+    wordbookFileCreateEl.disabled = true;
+    wordbookFileStatusEl.textContent =
+      choice === "open" ? "正在打开已有单词本…" : "正在创建单词本文件…";
     try {
-      wordbookEntries = await chooseWordbookFile(wordbookEntries, localStorage);
+      wordbookEntries = await chooseWordbookFile(wordbookEntries, localStorage, choice);
       wordbookFileReady = true;
       cacheWordbook();
       renderWordbook();
@@ -391,14 +587,16 @@ async function ensureWordbookFile(): Promise<boolean> {
       }
       return false;
     } finally {
-      wordbookFileChooseEl.disabled = false;
+      wordbookFileOpenEl.disabled = false;
+      wordbookFileCreateEl.disabled = false;
       wordbookFileChoice = null;
     }
   })();
   return wordbookFileChoice;
 }
 
-wordbookFileChooseEl.addEventListener("click", () => void ensureWordbookFile());
+wordbookFileOpenEl.addEventListener("click", () => void ensureWordbookFile("open"));
+wordbookFileCreateEl.addEventListener("click", () => void ensureWordbookFile("create"));
 
 function selectedWordbookIds(): string[] {
   return [...wordbookListEl.querySelectorAll<HTMLInputElement>("input:checked")].map(

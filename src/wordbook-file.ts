@@ -34,7 +34,16 @@ interface SavePickerOptions {
   types: Array<{ description: string; accept: Record<string, string[]> }>;
 }
 
+interface OpenPickerOptions {
+  startIn?: "documents" | "downloads";
+  excludeAcceptAllOption: boolean;
+  multiple: false;
+  types: Array<{ description: string; accept: Record<string, string[]> }>;
+}
+
 type SavePicker = (options: SavePickerOptions) => Promise<WordbookFileHandle>;
+type OpenPicker = (options: OpenPickerOptions) => Promise<WordbookFileHandle[]>;
+type WordbookFileChoice = "open" | "create";
 
 let activeHandle: WordbookFileHandle | null = null;
 let downloadMode = false;
@@ -43,8 +52,16 @@ function savePicker(): SavePicker | undefined {
   return (window as Window & { showSaveFilePicker?: SavePicker }).showSaveFilePicker;
 }
 
+function openPicker(): OpenPicker | undefined {
+  return (window as Window & { showOpenFilePicker?: OpenPicker }).showOpenFilePicker;
+}
+
 export function supportsWordbookFilePicker(): boolean {
   return Boolean(savePicker());
+}
+
+export function supportsWordbookOpenPicker(): boolean {
+  return Boolean(openPicker());
 }
 
 function openHandleDb(): Promise<IDBDatabase> {
@@ -139,11 +156,17 @@ export async function restoreWordbookFile(
   return entries;
 }
 
-async function pickFile(picker: SavePicker): Promise<WordbookFileHandle> {
-  const base = {
-    suggestedName: FILE_NAME,
+function pickerTypes() {
+  return {
     excludeAcceptAllOption: true,
     types: [{ description: "Dove 单词本", accept: { "application/json": [".json"] } }],
+  };
+}
+
+async function pickNewFile(picker: SavePicker): Promise<WordbookFileHandle> {
+  const base: Omit<SavePickerOptions, "startIn"> = {
+    suggestedName: FILE_NAME,
+    ...pickerTypes(),
   };
 
   try {
@@ -154,11 +177,32 @@ async function pickFile(picker: SavePicker): Promise<WordbookFileHandle> {
   return picker({ ...base, startIn: "downloads" });
 }
 
+async function pickExistingFile(picker: OpenPicker): Promise<WordbookFileHandle> {
+  const base: Omit<OpenPickerOptions, "startIn"> = {
+    multiple: false,
+    ...pickerTypes(),
+  };
+  let handles: WordbookFileHandle[];
+  try {
+    handles = await picker({ ...base, startIn: "documents" });
+  } catch (error) {
+    if (!(error instanceof TypeError)) throw error;
+    handles = await picker({ ...base, startIn: "downloads" });
+  }
+  const handle = handles[0];
+  if (!handle) throw new Error("没有选择单词本文件");
+  return handle;
+}
+
 export async function chooseWordbookFile(
   current: WordbookEntry[],
   storage: MarkerStorage,
+  choice: WordbookFileChoice = "create",
 ): Promise<WordbookEntry[]> {
-  const picker = savePicker();
+  const picker = choice === "open" ? openPicker() : savePicker();
+  if (!picker && choice === "open") {
+    throw new Error("当前浏览器不支持直接选择并写回已有文件");
+  }
   if (!picker) {
     downloadEntries(current);
     downloadMode = true;
@@ -170,7 +214,10 @@ export async function chooseWordbookFile(
     return current;
   }
 
-  const handle = await pickFile(picker);
+  const handle =
+    choice === "open"
+      ? await pickExistingFile(picker as OpenPicker)
+      : await pickNewFile(picker as SavePicker);
   const entries = await readEntries(handle, current);
   await writeEntries(handle, entries);
   activeHandle = handle;
