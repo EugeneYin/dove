@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "baselineAppVersion": "3.0.0",
+  "baselineAppVersion": "3.1.0",
   "suite": {
     "id": "pwa-devices",
     "runner": "playwright",
@@ -59,6 +59,12 @@
         "name": "单词本入口与窄屏表格",
         "introducedIn": "3.0.0",
         "protects": "单词本入口不与翻页控件重叠，页面与三列表格不超出目标设备视口"
+      },
+      {
+        "id": "DEVICE-010",
+        "name": "词卡单词本操作兼容性",
+        "introducedIn": "3.1.0",
+        "protects": "桌面双击与触屏长按打开的词卡都显示添加单词本按钮，且按钮不溢出词卡"
       }
     ]
   }

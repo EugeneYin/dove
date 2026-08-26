@@ -1,8 +1,12 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
+  findWordbookEntry,
   loadWordbook,
+  parseWordbookFile,
+  removeWordbookWord,
   saveWordbook,
+  serializeWordbookFile,
   singleLineMeaning,
   WORDBOOK_STORAGE_KEY,
   type WordbookEntry,
@@ -45,4 +49,18 @@ test("损坏或结构不完整的数据不会破坏单词本", () => {
 
   storage.setItem(WORDBOOK_STORAGE_KEY, JSON.stringify([entry, { word: "missing-fields" }]));
   assert.deepEqual(loadWordbook(storage), [entry]);
+});
+
+test("单词本文件可读写，损坏文件会被拒绝", () => {
+  const text = serializeWordbookFile([entry]);
+  assert.equal(text.endsWith("\n"), true);
+  assert.deepEqual(parseWordbookFile(text), [entry]);
+  assert.equal(parseWordbookFile("not-json"), null);
+  assert.equal(parseWordbookFile(JSON.stringify([entry, { word: "missing-fields" }])), null);
+});
+
+test("弹窗按单词忽略大小写判断添加状态并删除", () => {
+  assert.deepEqual(findWordbookEntry([entry], "Convey"), entry);
+  assert.equal(findWordbookEntry([entry], "another"), undefined);
+  assert.deepEqual(removeWordbookWord([entry], "CONVEY"), []);
 });

@@ -232,6 +232,20 @@ export async function runDeviceFlow(page: Page, testInfo: TestInfo) {
     expect(await lookUp(page, "ubiquitous")).toBe("ubiquitous");
   });
 
+  await test.step("DEVICE-010 词卡单词本操作兼容性", async () => {
+    const action = page.getByRole("button", { name: "添加 ubiquitous 到单词本" });
+    await expect(action).toBeVisible();
+    await expect(action).toHaveText("＋");
+    const layout = await page.locator("#popup").evaluate((popup) => {
+      const button = popup.querySelector(".wordbook-toggle");
+      return {
+        popupRight: popup.getBoundingClientRect().right,
+        buttonRight: button?.getBoundingClientRect().right ?? Infinity,
+      };
+    });
+    expect(layout.buttonRight).toBeLessThanOrEqual(layout.popupRight);
+  });
+
   await test.step("DEVICE-008 在线例句开关与折叠词卡", async () => {
     await page.evaluate(() => {
       const originalFetch = window.fetch;

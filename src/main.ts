@@ -10,11 +10,19 @@ import { buildTextLayer, recognize, type OcrWord } from "./ocr";
 import { recentDocs, rememberDoc, rememberPage } from "./library";
 import { initDiag, log, setAppProbe } from "./diag";
 import {
+  findWordbookEntry,
   loadWordbook,
+  removeWordbookWord,
   saveWordbook,
   singleLineMeaning,
   type WordbookEntry,
 } from "./wordbook";
+import {
+  chooseWordbookFile,
+  restoreWordbookFile,
+  saveWordbookFile,
+  supportsWordbookFilePicker,
+} from "./wordbook-file";
 import { fetchOnlineExamples } from "./examples";
 
 // 自己创建 worker，好让 polyfill 先于 pdfjs worker 执行
@@ -56,6 +64,9 @@ const wordbookWordEl = $<HTMLInputElement>("wordbook-word");
 const wordbookPhoneticEl = $<HTMLInputElement>("wordbook-phonetic");
 const wordbookMeaningEl = $<HTMLTextAreaElement>("wordbook-meaning");
 const wordbookLookupStatusEl = $<HTMLParagraphElement>("wordbook-lookup-status");
+const wordbookFileSetupEl = $<HTMLElement>("wordbook-file-setup");
+const wordbookFileStatusEl = $<HTMLParagraphElement>("wordbook-file-status");
+const wordbookFileChooseEl = $<HTMLButtonElement>("wordbook-file-choose");
 const onlineExamplesEl = $<HTMLInputElement>("online-examples");
 
 const ONLINE_EXAMPLES_KEY = "dove.onlineExamples";
@@ -315,12 +326,79 @@ document.addEventListener("keydown", (event) => {
 
 let wordbookEntries: WordbookEntry[] = [];
 let wordbookManaging = false;
+let wordbookFileReady = false;
 
 try {
   wordbookEntries = loadWordbook(localStorage);
 } catch (e) {
   console.warn("单词本不可用：", e);
 }
+
+function cacheWordbook() {
+  try {
+    saveWordbook(localStorage, wordbookEntries);
+  } catch (error) {
+    console.warn("无法缓存单词本：", error);
+  }
+}
+
+function syncWordbookFileSetup() {
+  wordbookFileSetupEl.hidden = wordbookFileReady;
+  if (wordbookFileReady) return;
+  wordbookFileStatusEl.textContent = supportsWordbookFilePicker()
+    ? "首次使用请先选择单词本文件；默认从 Documents 创建。"
+    : "当前浏览器不能直接写文件，将改为下载 dove-wordbook.json。";
+}
+
+const wordbookFileRestore = restoreWordbookFile(wordbookEntries, localStorage).then(
+  (entries) => {
+    if (!entries) return;
+    wordbookEntries = entries;
+    wordbookFileReady = true;
+    cacheWordbook();
+    renderWordbook();
+    syncWordbookFileSetup();
+  },
+  (error) => {
+    console.warn("单词本文件不可用：", error);
+    syncWordbookFileSetup();
+  },
+);
+
+let wordbookFileChoice: Promise<boolean> | null = null;
+
+async function ensureWordbookFile(): Promise<boolean> {
+  await wordbookFileRestore;
+  if (wordbookFileReady) return true;
+  if (wordbookFileChoice) return wordbookFileChoice;
+
+  wordbookFileChoice = (async () => {
+    wordbookFileChooseEl.disabled = true;
+    wordbookFileStatusEl.textContent = "正在准备单词本文件…";
+    try {
+      wordbookEntries = await chooseWordbookFile(wordbookEntries, localStorage);
+      wordbookFileReady = true;
+      cacheWordbook();
+      renderWordbook();
+      syncWordbookFileSetup();
+      return true;
+    } catch (error) {
+      if ((error as DOMException).name !== "AbortError") {
+        console.error("无法选择单词本文件：", error);
+        wordbookFileStatusEl.textContent = `无法准备单词本文件：${(error as Error).message}`;
+      } else {
+        syncWordbookFileSetup();
+      }
+      return false;
+    } finally {
+      wordbookFileChooseEl.disabled = false;
+      wordbookFileChoice = null;
+    }
+  })();
+  return wordbookFileChoice;
+}
+
+wordbookFileChooseEl.addEventListener("click", () => void ensureWordbookFile());
 
 function selectedWordbookIds(): string[] {
   return [...wordbookListEl.querySelectorAll<HTMLInputElement>("input:checked")].map(
@@ -370,12 +448,15 @@ function renderWordbook() {
   syncWordbookSelection();
 }
 
-function persistWordbook(): boolean {
+async function persistWordbook(): Promise<boolean> {
   try {
-    saveWordbook(localStorage, wordbookEntries);
+    await saveWordbookFile(wordbookEntries);
+    cacheWordbook();
     return true;
   } catch (e) {
     console.error("保存单词本失败：", e);
+    wordbookFileReady = false;
+    syncWordbookFileSetup();
     return false;
   }
 }
@@ -408,12 +489,13 @@ wordbookManageEl.addEventListener("click", () => {
   setWordbookManaging(!wordbookManaging);
 });
 
-wordbookDeleteEl.addEventListener("click", () => {
+wordbookDeleteEl.addEventListener("click", async () => {
   const selected = new Set(selectedWordbookIds());
   if (!selected.size) return;
+  if (!(await ensureWordbookFile())) return;
   const previous = wordbookEntries;
   wordbookEntries = wordbookEntries.filter((entry) => !selected.has(entry.id));
-  if (persistWordbook()) renderWordbook();
+  if (await persistWordbook()) renderWordbook();
   else wordbookEntries = previous;
 });
 
@@ -424,7 +506,9 @@ function openWordbookEditor() {
   wordbookWordEl.focus();
 }
 
-$<HTMLButtonElement>("wordbook-add").addEventListener("click", openWordbookEditor);
+$<HTMLButtonElement>("wordbook-add").addEventListener("click", async () => {
+  if (await ensureWordbookFile()) openWordbookEditor();
+});
 $<HTMLButtonElement>("wordbook-cancel").addEventListener("click", () => wordbookEditorEl.close());
 
 let wordbookLookupTimer: number | undefined;
@@ -465,7 +549,7 @@ wordbookWordEl.addEventListener("input", () => {
   }, 250);
 });
 
-wordbookFormEl.addEventListener("submit", (event) => {
+wordbookFormEl.addEventListener("submit", async (event) => {
   event.preventDefault();
   const word = wordbookWordEl.value.trim();
   if (!word) return;
@@ -479,9 +563,9 @@ wordbookFormEl.addEventListener("submit", (event) => {
     createdAt,
   });
 
-  if (!persistWordbook()) {
+  if (!(await persistWordbook())) {
     wordbookEntries.pop();
-    wordbookLookupStatusEl.textContent = "保存失败，请检查浏览器是否允许本地存储。";
+    wordbookLookupStatusEl.textContent = "保存失败，请重新选择单词本文件。";
     return;
   }
 
@@ -490,6 +574,7 @@ wordbookFormEl.addEventListener("submit", (event) => {
 });
 
 renderWordbook();
+syncWordbookFileSetup();
 
 initSpeech();
 
@@ -833,15 +918,65 @@ function lookup(word: string, rects: DOMRect[]) {
 
   const entry = lookupWord(word);
   const head = el("div", "head");
-  head.append(el("span", "word", entry?.word ?? word));
+  const displayedWord = entry?.word ?? word;
+  head.append(el("span", "word", displayedWord));
   if (entry?.phonetic) head.append(el("span", "phonetic", `/${entry.phonetic}/`));
 
+  const actions = el("div", "popup-actions");
+
   if (canSpeak()) {
-    const btn = el("button", "speak", "🔊");
+    const btn = el("button", "speak", "🔊") as HTMLButtonElement;
+    btn.type = "button";
     btn.title = voiceName() ?? "系统默认语音";
-    btn.addEventListener("click", () => speak(entry?.word ?? word));
-    head.append(btn);
+    btn.setAttribute("aria-label", `播放 ${displayedWord}`);
+    btn.addEventListener("click", () => speak(displayedWord));
+    actions.append(btn);
   }
+
+  const wordbookToggle = el("button", "wordbook-toggle") as HTMLButtonElement;
+  wordbookToggle.type = "button";
+  const syncWordbookToggle = () => {
+    const saved = Boolean(findWordbookEntry(wordbookEntries, displayedWord));
+    wordbookToggle.textContent = saved ? "📒" : "＋";
+    wordbookToggle.setAttribute(
+      "aria-label",
+      saved ? `从单词本删除 ${displayedWord}` : `添加 ${displayedWord} 到单词本`,
+    );
+    wordbookToggle.title = saved ? "从单词本删除" : "添加到单词本";
+  };
+  syncWordbookToggle();
+  wordbookToggle.addEventListener("click", async () => {
+    const wasSaved = Boolean(findWordbookEntry(wordbookEntries, displayedWord));
+    wordbookToggle.disabled = true;
+    try {
+      if (!(await ensureWordbookFile())) return;
+      const saved = findWordbookEntry(wordbookEntries, displayedWord);
+      if (wasSaved) {
+        if (!saved) return;
+        if (!window.confirm(`确定从单词本删除“${displayedWord}”吗？`)) return;
+        const previous = wordbookEntries;
+        wordbookEntries = removeWordbookWord(wordbookEntries, displayedWord);
+        if (!(await persistWordbook())) wordbookEntries = previous;
+      } else {
+        if (saved) return;
+        const createdAt = Date.now();
+        wordbookEntries.push({
+          id: `${createdAt}-${Math.random().toString(36).slice(2, 9)}`,
+          word: displayedWord,
+          phonetic: entry?.phonetic ?? "",
+          meaning: entry ? singleLineMeaning(entry.translation || entry.definition) : "",
+          createdAt,
+        });
+        if (!(await persistWordbook())) wordbookEntries.pop();
+      }
+      renderWordbook();
+    } finally {
+      wordbookToggle.disabled = false;
+      syncWordbookToggle();
+    }
+  });
+  actions.append(wordbookToggle);
+  head.append(actions);
 
   popupEl.replaceChildren(head);
 

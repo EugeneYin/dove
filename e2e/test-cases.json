@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "baselineAppVersion": "3.0.0",
+  "baselineAppVersion": "3.1.0",
   "suite": {
     "id": "pwa-offline",
     "runner": "playwright",
@@ -113,6 +113,18 @@
         "name": "离线重启后恢复单词本",
         "introducedIn": "3.0.0",
         "protects": "本地保存的单词在服务器关闭并冷启动后仍可恢复"
+      },
+      {
+        "id": "PWA-019",
+        "name": "首次指定单词本文件",
+        "introducedIn": "3.1.0",
+        "protects": "首次进入单词本时可在 Documents 创建 JSON 文件，并把当前词条写入该文件"
+      },
+      {
+        "id": "PWA-020",
+        "name": "词卡添加与确认删除",
+        "introducedIn": "3.1.0",
+        "protects": "双击或长按词卡可用加号加入单词本，已加入时显示本子图标且删除前确认"
       }
     ]
   }

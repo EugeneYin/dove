@@ -553,6 +553,24 @@ body {
   gap: 8px;
 }
 
+.wordbook-file-setup {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+  padding: 12px 14px;
+  color: #52525b;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  border-radius: 10px;
+}
+
+.wordbook-file-setup p {
+  margin: 0;
+  font-size: 13px;
+}
+
 .secondary-button,
 .danger-button,
 .primary-button,
@@ -779,6 +797,11 @@ body {
     justify-content: flex-end;
   }
 
+  .wordbook-file-setup {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
   .secondary-button,
   .danger-button {
     padding-inline: 9px;
@@ -923,9 +946,16 @@ canvas {
   color: #71717a;
 }
 
-#popup .speak {
-  margin-left: auto;
+#popup .popup-actions {
+  display: flex;
   align-self: center;
+  gap: 6px;
+  margin-left: auto;
+}
+
+#popup .speak,
+#popup .wordbook-toggle {
+  min-width: 36px;
   padding: 4px 10px;
   font-size: 17px;
   line-height: 1;
