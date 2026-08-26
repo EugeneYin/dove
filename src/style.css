@@ -700,6 +700,13 @@ body {
   font-size: 13px;
 }
 
+.wordbook-file-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
 .secondary-button,
 .danger-button,
 .primary-button,
@@ -929,6 +936,10 @@ body {
   .wordbook-file-setup {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .wordbook-file-actions > button {
+    flex: 1 1 auto;
   }
 
   .secondary-button,

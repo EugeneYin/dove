@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "baselineAppVersion": "3.2.1",
+  "baselineAppVersion": "3.2.2",
   "suite": {
     "id": "pwa-offline",
     "runner": "playwright",
@@ -149,6 +149,12 @@
         "name": "GitHub API 限流时继续浏览在线目录",
         "introducedIn": "3.2.1",
         "protects": "匿名 GitHub API 额度耗尽后自动改用备用文件树，且后续目录浏览不再重复请求受限接口"
+      },
+      {
+        "id": "PWA-025",
+        "name": "选择已有单词本文件并继续写回",
+        "introducedIn": "3.2.2",
+        "protects": "选择已有文件使用打开窗口而非保存窗口，读取现有词条后仍能写回同一个文件"
       }
     ]
   }

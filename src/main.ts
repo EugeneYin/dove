@@ -22,6 +22,7 @@ import {
   restoreWordbookFile,
   saveWordbookFile,
   supportsWordbookFilePicker,
+  supportsWordbookOpenPicker,
 } from "./wordbook-file";
 import { fetchOnlineExamples } from "./examples";
 import {
@@ -76,7 +77,8 @@ const wordbookMeaningEl = $<HTMLTextAreaElement>("wordbook-meaning");
 const wordbookLookupStatusEl = $<HTMLParagraphElement>("wordbook-lookup-status");
 const wordbookFileSetupEl = $<HTMLElement>("wordbook-file-setup");
 const wordbookFileStatusEl = $<HTMLParagraphElement>("wordbook-file-status");
-const wordbookFileChooseEl = $<HTMLButtonElement>("wordbook-file-choose");
+const wordbookFileOpenEl = $<HTMLButtonElement>("wordbook-file-open");
+const wordbookFileCreateEl = $<HTMLButtonElement>("wordbook-file-create");
 const onlineExamplesEl = $<HTMLInputElement>("online-examples");
 const onlineLibraryEl = $<HTMLDivElement>("online-library");
 const onlineLibraryStatusEl = $<HTMLParagraphElement>("online-library-status");
@@ -531,9 +533,15 @@ function cacheWordbook() {
 function syncWordbookFileSetup() {
   wordbookFileSetupEl.hidden = wordbookFileReady;
   if (wordbookFileReady) return;
-  wordbookFileStatusEl.textContent = supportsWordbookFilePicker()
-    ? "首次使用请先选择单词本文件；默认从 Documents 创建。"
-    : "当前浏览器不能直接写文件，将改为下载 dove-wordbook.json。";
+  const canOpen = supportsWordbookOpenPicker();
+  const canCreate = supportsWordbookFilePicker();
+  wordbookFileOpenEl.hidden = !canOpen;
+  wordbookFileCreateEl.textContent = canCreate ? "创建新文件" : "下载新文件";
+  wordbookFileStatusEl.textContent = canOpen
+    ? "请选择已有单词本，或创建一个新文件。"
+    : canCreate
+      ? "当前浏览器只能创建新的单词本文件。"
+      : "当前浏览器不能直接写文件，将改为下载 dove-wordbook.json。";
 }
 
 const wordbookFileRestore = restoreWordbookFile(wordbookEntries, localStorage).then(
@@ -553,16 +561,18 @@ const wordbookFileRestore = restoreWordbookFile(wordbookEntries, localStorage).t
 
 let wordbookFileChoice: Promise<boolean> | null = null;
 
-async function ensureWordbookFile(): Promise<boolean> {
+async function ensureWordbookFile(choice: "open" | "create" = "create"): Promise<boolean> {
   await wordbookFileRestore;
   if (wordbookFileReady) return true;
   if (wordbookFileChoice) return wordbookFileChoice;
 
   wordbookFileChoice = (async () => {
-    wordbookFileChooseEl.disabled = true;
-    wordbookFileStatusEl.textContent = "正在准备单词本文件…";
+    wordbookFileOpenEl.disabled = true;
+    wordbookFileCreateEl.disabled = true;
+    wordbookFileStatusEl.textContent =
+      choice === "open" ? "正在打开已有单词本…" : "正在创建单词本文件…";
     try {
-      wordbookEntries = await chooseWordbookFile(wordbookEntries, localStorage);
+      wordbookEntries = await chooseWordbookFile(wordbookEntries, localStorage, choice);
       wordbookFileReady = true;
       cacheWordbook();
       renderWordbook();
@@ -577,14 +587,16 @@ async function ensureWordbookFile(): Promise<boolean> {
       }
       return false;
     } finally {
-      wordbookFileChooseEl.disabled = false;
+      wordbookFileOpenEl.disabled = false;
+      wordbookFileCreateEl.disabled = false;
       wordbookFileChoice = null;
     }
   })();
   return wordbookFileChoice;
 }
 
-wordbookFileChooseEl.addEventListener("click", () => void ensureWordbookFile());
+wordbookFileOpenEl.addEventListener("click", () => void ensureWordbookFile("open"));
+wordbookFileCreateEl.addEventListener("click", () => void ensureWordbookFile("create"));
 
 function selectedWordbookIds(): string[] {
   return [...wordbookListEl.querySelectorAll<HTMLInputElement>("input:checked")].map(

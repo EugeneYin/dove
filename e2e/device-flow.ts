@@ -137,6 +137,19 @@ async function waitUntilDeviceOffline(page: Page) {
 }
 
 export async function runDeviceFlow(page: Page, testInfo: TestInfo) {
+  if (!REAL_DEVICE) {
+    await page.addInitScript(() => {
+      Object.defineProperty(window, "showOpenFilePicker", {
+        configurable: true,
+        value: async () => [],
+      });
+      Object.defineProperty(window, "showSaveFilePicker", {
+        configurable: true,
+        value: async () => ({}),
+      });
+    });
+  }
+
   await testInfo.attach("device-test-case-catalog", {
     body: readFileSync(resolve(PROJECT_ROOT, "e2e/device-test-cases.json")),
     contentType: "application/json",
@@ -243,6 +256,28 @@ export async function runDeviceFlow(page: Page, testInfo: TestInfo) {
     expect(layout.pageRight).toBeLessThanOrEqual(layout.viewportWidth);
     expect(layout.tableRight).toBeLessThanOrEqual(layout.viewportWidth);
     await expect(page.getByRole("button", { name: "添加单词" })).toBeVisible();
+  });
+
+  await test.step("DEVICE-012 单词本选择已有与创建新文件入口", async () => {
+    const canOpen = await page.evaluate(
+      () =>
+        typeof (window as Window & { showOpenFilePicker?: unknown }).showOpenFilePicker ===
+        "function",
+    );
+    const open = page.getByRole("button", { name: "选择已有文件" });
+    if (canOpen) await expect(open).toBeVisible();
+    else await expect(open).toBeHidden();
+    await expect(page.locator("#wordbook-file-create")).toBeVisible();
+
+    const layout = await page.locator(".wordbook-file-actions").evaluate((node) => ({
+      actionsRight: node.getBoundingClientRect().right,
+      buttonRights: [...node.querySelectorAll("button")].map(
+        (button) => button.getBoundingClientRect().right,
+      ),
+      viewportWidth: document.documentElement.clientWidth,
+    }));
+    expect(layout.actionsRight).toBeLessThanOrEqual(layout.viewportWidth);
+    expect(layout.buttonRights.every((right) => right <= layout.viewportWidth)).toBe(true);
     await page.getByRole("button", { name: "返回阅读" }).click();
   });
 

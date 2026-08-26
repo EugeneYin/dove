@@ -168,6 +168,71 @@ test.describe("PWA 离线完整链路", () => {
     });
   });
 
+  test("PWA-025 选择已有单词本文件并继续写回", async ({ page }) => {
+    await test.step("PWA-025 选择已有单词本文件并继续写回", async () => {
+      const existingEntry = {
+        id: "existing-word",
+        word: "existing",
+        phonetic: "ɪɡˈzɪstɪŋ",
+        meaning: "adj. 现有的",
+        createdAt: 1,
+      };
+      await page.addInitScript((entry) => {
+        Object.defineProperty(window, "showOpenFilePicker", {
+          configurable: true,
+          value: async (options: unknown) => {
+            localStorage.setItem("dove.test.wordbookOpenPickerOptions", JSON.stringify(options));
+            return [
+              {
+                name: "existing-wordbook.json",
+                getFile: async () =>
+                  new File([`${JSON.stringify([entry], null, 2)}\n`], "existing-wordbook.json", {
+                    type: "application/json",
+                  }),
+                queryPermission: async () => "granted",
+                createWritable: async () => ({
+                  write: async (contents: string) => {
+                    localStorage.setItem("dove.test.wordbookExistingFile", contents);
+                  },
+                  close: async () => undefined,
+                }),
+              },
+            ];
+          },
+        });
+        Object.defineProperty(window, "showSaveFilePicker", {
+          configurable: true,
+          value: async () => {
+            localStorage.setItem("dove.test.wordbookSavePickerCalled", "1");
+            throw new Error("选择已有文件时不应打开保存窗口");
+          },
+        });
+      }, existingEntry);
+
+      await page.goto(baseURL);
+      await page.getByRole("button", { name: "单词本", exact: true }).click();
+      await expect(page.getByRole("button", { name: "选择已有文件" })).toBeVisible();
+      await expect(page.getByRole("button", { name: "创建新文件" })).toBeVisible();
+      await page.getByRole("button", { name: "选择已有文件" }).click();
+
+      await expect(page.locator("#wordbook-file-setup")).toBeHidden();
+      await expect(page.locator("#wordbook-list tr", { hasText: "existing" })).toBeVisible();
+      const fileState = await page.evaluate(() => ({
+        openOptions: JSON.parse(
+          localStorage.getItem("dove.test.wordbookOpenPickerOptions") ?? "null",
+        ),
+        saveCalled: localStorage.getItem("dove.test.wordbookSavePickerCalled"),
+        entries: JSON.parse(localStorage.getItem("dove.test.wordbookExistingFile") ?? "null"),
+      }));
+      expect(fileState.openOptions).toMatchObject({
+        multiple: false,
+        startIn: "documents",
+      });
+      expect(fileState.saveCalled).toBeNull();
+      expect(fileState.entries).toEqual([existingEntry]);
+    });
+  });
+
   test(`v${APP_VERSION} 当前 PWA 离线回归基线`, async ({ page }, testInfo) => {
     testInfo.annotations.push({ type: "catalog", description: "e2e/test-cases.json" });
     await testInfo.attach("test-case-catalog", {
@@ -268,7 +333,7 @@ test.describe("PWA 离线完整链路", () => {
     await test.step("PWA-020 首次指定单词本文件", async () => {
       await page.getByRole("button", { name: "单词本", exact: true }).click();
       await expect(page.locator("#wordbook-file-setup")).toBeVisible();
-      await page.getByRole("button", { name: "选择或创建单词本文件" }).click();
+      await page.getByRole("button", { name: "创建新文件" }).click();
       await expect(page.locator("#wordbook-file-setup")).toBeHidden();
 
       const fileState = await page.evaluate(() => ({

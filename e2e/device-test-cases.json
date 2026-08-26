@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "baselineAppVersion": "3.2.1",
+  "baselineAppVersion": "3.2.2",
   "suite": {
     "id": "pwa-devices",
     "runner": "playwright",
@@ -71,6 +71,12 @@
         "name": "在线文档库抽屉与源设置",
         "introducedIn": "3.2.0",
         "protects": "在线文档库和源设置在桌面与触屏窄视口中保持可见、可滚动且不横向溢出"
+      },
+      {
+        "id": "DEVICE-012",
+        "name": "单词本选择已有与创建新文件入口",
+        "introducedIn": "3.2.2",
+        "protects": "支持文件系统访问的桌面与触屏视口都显示两个明确入口，且按钮不横向溢出"
       }
     ]
   }

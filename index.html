@@ -145,14 +145,14 @@
 
       <section id="wordbook-file-setup" class="wordbook-file-setup" aria-live="polite">
         <p id="wordbook-file-status">首次使用请先选择单词本文件。</p>
-        <button
-          id="wordbook-file-choose"
-          class="secondary-button"
-          type="button"
-          aria-label="选择或创建单词本文件"
-        >
-          选择 / 创建文件
-        </button>
+        <div class="wordbook-file-actions">
+          <button id="wordbook-file-open" class="secondary-button" type="button">
+            选择已有文件
+          </button>
+          <button id="wordbook-file-create" class="secondary-button" type="button">
+            创建新文件
+          </button>
+        </div>
       </section>
 
       <div class="wordbook-table-wrap">
