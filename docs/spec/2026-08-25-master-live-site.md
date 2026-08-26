@@ -26,15 +26,17 @@
 2. `dove-master` 生产分支为 `master`，部署内容来自该次 GitHub Actions 的 `github.sha`。
 3. Pages 固定地址的 `/`、`/manifest.webmanifest`、`/sw.js`、`/dict.json.gz` 均为 2xx。
 4. 上述四个资源与本次不可变 deployment URL 的响应体逐一相同。
-5. 对外固定地址的上述四个资源均为 2xx，并与 Pages 固定地址的响应体逐一相同；该项属于一次性
-   域名验收，不属于日常 `master-promote` 门禁。
-6. Actions Summary 记录应用版本、完整 SHA、候选 deployment、master deployment 和 Pages 固定地址。
-7. 新的 `master` push 若门禁失败，`master-promote` 不运行，固定站点保留上一版。
+5. 对外固定地址的上述四个资源均为 2xx，并与本次不可变 deployment URL 的响应体逐一相同；该项属于
+   每次 `master-promote` 的发布门禁。
+6. 每日计划任务检查对外固定地址与 Pages 固定地址的四个资源仍然逐字节一致。
+7. Actions Summary 记录应用版本、完整 SHA、候选 deployment、master deployment、Pages 固定地址和
+   对外固定地址。
+8. 新的 `master` push 若门禁失败，`master-promote` 不运行，固定站点保留上一版。
 
 ## 初始化与回滚
 
 - 在 Cloudflare Pages 创建 `dove-master`，生产分支设置为 `master`。
 - 对外固定地址 `master.dove.ethanyin.com` 已绑定到 `dove-master`，并使用指向
-  `dove-master.pages.dev` 的 Proxied CNAME；该一次性域名配置不属于日常发布门禁。
+  `dove-master.pages.dev` 的 Proxied CNAME；绑定与 DNS 仍是一次性配置，日常发布只做只读验收。
 - 代码回滚使用 Git revert；站点内容需要紧急回退时，在 `master` revert 后由同一门禁重新发布。
 - 不删除旧 deployment，保留 Cloudflare 与 GitHub Actions 的 SHA 证据链。

@@ -139,7 +139,8 @@ Quick Tunnel 和单次 deployment URL 都不能替代固定验收地址。
 
 `master` 使用独立的 `dove-master` Pages 项目；对外固定地址是 `https://master.dove.ethanyin.com`，
 Pages 固定地址是 `https://dove-master.pages.dev`。`master-promote` 只在同一提交的 baseline、Preview
-和四端模拟全部成功后运行；失败的 `master` push 不得覆盖当前在线版本。
+和四端模拟全部成功后运行，并将对外固定地址的四个核心资源与不可变 deployment 逐字节比较；失败的
+`master` push 不得覆盖当前在线版本。每日计划任务还会检查对外固定地址与 Pages 固定地址保持一致。
 
 首次绑定固定域名时，`stage.dove.ethanyin.com` 需要一条指向 `dove-stage.pages.dev` 的 Proxied CNAME。
 由域名管理员一次性添加该记录并在 Pages 项目中绑定自定义域名。日常 GitHub Actions Token 只保留
@@ -147,7 +148,8 @@ Pages 固定地址是 `https://dove-master.pages.dev`。`master-promote` 只在�
 DNS 和域名绑定仍然有效，不在日常部署中修改 DNS。
 
 `master.dove.ethanyin.com` 已由域名管理员一次性绑定到 `dove-master`，并添加指向
-`dove-master.pages.dev` 的 Proxied CNAME。该域名配置不属于日常 `master-promote` 的发布门禁。
+`dove-master.pages.dev` 的 Proxied CNAME。绑定与 DNS 不由日常工作流改写，但自定义域可达性和内容一致性
+属于日常 `master-promote` 与计划任务的验收范围。
 
 ```bash
 git push origin feat/v2.1-diagnostics
