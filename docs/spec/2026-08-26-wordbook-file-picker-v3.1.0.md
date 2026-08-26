@@ -25,8 +25,8 @@
 
 | ID | 验收点 | 自动化证据 |
 |---|---|---|
-| PWA-019 | 首次选择文件时建议 `dove-wordbook.json` 与 Documents，并写入当前词条 | `e2e/pwa.spec.ts` |
-| PWA-020 | “＋/📒”状态、文件写入与删除确认 | `e2e/pwa.spec.ts` |
+| PWA-020 | 首次选择文件时建议 `dove-wordbook.json` 与 Documents，并写入当前词条 | `e2e/pwa.spec.ts` |
+| PWA-021 | “＋/📒”状态、文件写入与删除确认 | `e2e/pwa.spec.ts` |
 | DEVICE-010 | 桌面双击及触屏长按的词卡按钮可见且不溢出 | `e2e/device-flow.ts` |
 | UNIT | JSON 严格解析、序列化、忽略大小写查找与删除 | `src/wordbook.test.ts` |
 
@@ -40,8 +40,8 @@
 ## 本地验证记录
 
 - `pnpm test`：17/17 通过。
-- `pnpm run e2e:catalog`：PWA 20 项、Device 10 项目录有效。
-- `pnpm run e2e:pwa`：1/1 完整离线链路通过，包含 PWA-019、PWA-020 与服务器关闭后的冷启动/OCR 回归。
+- `pnpm run e2e:catalog`：PWA 21 项、Device 10 项目录有效。
+- `pnpm run e2e:pwa`：2/2 通过；包含 stage 的 PWA-019，以及本轮 PWA-020、PWA-021 与服务器关闭后的冷启动/OCR 回归。
 - `pnpm run e2e:devices`：4/4 通过，覆盖 PC、iPhone、iPad、Android Pad 的 Playwright 模拟环境。
 - 首轮设备矩阵的 iPad 在既有 DEVICE-007 抽屉切换处波动失败；单项重跑及最终全矩阵均通过。
 - 未运行 BrowserStack 物理真机，也未创建远程 Preview 或固定验收 URL。

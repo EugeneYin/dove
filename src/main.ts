@@ -771,6 +771,10 @@ async function registerWorker() {
         if (next.state === "installed" && navigator.serviceWorker.controller) offerUpdate(next);
       });
     });
+
+    // 页面可能在 updatefound 结束后才打开，此时新版已经停在 waiting，事件不会重放。
+    // 主动检查才能让长期打开或已安装的 PWA 重新获得刷新入口。
+    if (registration.waiting) offerUpdate(registration.waiting);
   } catch (e) {
     console.warn("Service Worker 注册失败：", e);
   }
@@ -804,7 +808,9 @@ function onWorkerMessage(data: unknown) {
  * 已经不存在的文件。等用户点一下再刷新。
  */
 function offerUpdate(worker: ServiceWorker) {
+  if (statusEl.querySelector("[data-sw-update]")) return;
   const button = el("button", "drawer-action", "新版本 · 刷新");
+  button.dataset.swUpdate = "";
   button.addEventListener("click", () => worker.postMessage({ type: "skip-waiting" }));
   statusEl.prepend(button);
 

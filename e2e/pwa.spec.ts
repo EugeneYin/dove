@@ -108,6 +108,46 @@ test.describe("PWA 离线完整链路", () => {
     await stopServer();
   });
 
+  test("PWA-019 再次访问时提示等待中的新版本", async ({ page }) => {
+    await test.step("PWA-019 再次访问时提示等待中的新版本", async () => {
+      await page.addInitScript(() => {
+        const waiting = {
+          postMessage(message: unknown) {
+            document.documentElement.dataset.workerMessage = JSON.stringify(message);
+          },
+        };
+        const active = { postMessage() {} };
+        const registration = new EventTarget();
+        Object.assign(registration, {
+          active,
+          installing: null,
+          scope: `${location.origin}/`,
+          waiting,
+        });
+
+        Object.defineProperty(navigator.serviceWorker, "register", {
+          configurable: true,
+          value: async () => registration,
+        });
+        Object.defineProperty(navigator.serviceWorker, "ready", {
+          configurable: true,
+          value: Promise.resolve(registration),
+        });
+      });
+
+      await page.goto(baseURL);
+      await page.getByRole("button", { name: "设置", exact: true }).click();
+      const update = page.getByRole("button", { name: "新版本 · 刷新" });
+      await expect(update).toBeVisible();
+      await expect(update).toHaveCount(1);
+
+      await update.click();
+      await expect
+        .poll(() => page.locator("html").getAttribute("data-worker-message"))
+        .toBe('{"type":"skip-waiting"}');
+    });
+  });
+
   test(`v${APP_VERSION} 当前 PWA 离线回归基线`, async ({ page }, testInfo) => {
     testInfo.annotations.push({ type: "catalog", description: "e2e/test-cases.json" });
     await testInfo.attach("test-case-catalog", {
@@ -205,7 +245,7 @@ test.describe("PWA 离线完整链路", () => {
       await expect(page.locator("#settings-drawer")).toBeHidden();
     });
 
-    await test.step("PWA-019 首次指定单词本文件", async () => {
+    await test.step("PWA-020 首次指定单词本文件", async () => {
       await page.getByRole("button", { name: "单词本", exact: true }).click();
       await expect(page.locator("#wordbook-file-setup")).toBeVisible();
       await page.getByRole("button", { name: "选择或创建单词本文件" }).click();
@@ -387,7 +427,7 @@ test.describe("PWA 离线完整链路", () => {
       expect(requests).toBe(1);
     });
 
-    await test.step("PWA-020 词卡添加与确认删除", async () => {
+    await test.step("PWA-021 词卡添加与确认删除", async () => {
       expect((await lookUp(page, "gamma"))?.word).toBe("gamma");
       const add = page.getByRole("button", { name: "添加 gamma 到单词本" });
       await expect(add).toHaveText("＋");
