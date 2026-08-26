@@ -104,6 +104,83 @@ describe("在线文档源", () => {
     );
   });
 
+  it("GitHub API 限流时用备用文件树继续浏览目录", async () => {
+    const requested: string[] = [];
+    const fetcher = (async (input: string | URL | Request) => {
+      const url = String(input);
+      requested.push(url);
+      if (url === "https://api.github.com/repos/limited-fallback/books/contents") {
+        return new Response(
+          JSON.stringify({ message: "API rate limit exceeded for 203.0.113.10." }),
+          { status: 403, headers: { "x-ratelimit-remaining": "0" } },
+        );
+      }
+      if (url === "https://ungh.cc/repos/limited-fallback/books") {
+        return Response.json({ repo: { defaultBranch: "main" } });
+      }
+      if (url === "https://ungh.cc/repos/limited-fallback/books/files/main") {
+        return Response.json({
+          files: [
+            { path: "README.md", size: 12 },
+            { path: "Root.pdf", size: 24 },
+            { path: "2026/Issue.pdf", size: 42 },
+            { path: "2026/Issue.epub", size: 21 },
+            { path: "2026/weekly/Nested.pdf", size: 84 },
+            { path: "fonts/reader.woff2", size: 16 },
+          ],
+        });
+      }
+      throw new Error(`未预期的请求：${url}`);
+    }) as typeof fetch;
+
+    const source = parseGitHubSource("https://github.com/limited-fallback/books");
+    const rootEntries = await fetchOnlineDirectory(source, "", fetcher);
+    assert.deepEqual(
+      rootEntries.map(({ type, name }) => ({ type, name })),
+      [
+        { type: "dir", name: "2026" },
+        { type: "dir", name: "fonts" },
+        { type: "pdf", name: "Root.pdf" },
+      ],
+    );
+
+    const nestedEntries = await fetchOnlineDirectory(source, "2026", fetcher);
+    assert.deepEqual(
+      nestedEntries.map(({ type, name, downloadUrl }) => ({ type, name, downloadUrl })),
+      [
+        { type: "dir", name: "weekly", downloadUrl: null },
+        {
+          type: "pdf",
+          name: "Issue.pdf",
+          downloadUrl:
+            "https://raw.githubusercontent.com/limited-fallback/books/main/2026/Issue.pdf",
+        },
+      ],
+    );
+    assert.deepEqual(requested, [
+      "https://api.github.com/repos/limited-fallback/books/contents",
+      "https://ungh.cc/repos/limited-fallback/books",
+      "https://ungh.cc/repos/limited-fallback/books/files/main",
+    ]);
+  });
+
+  it("非限流的 GitHub 目录错误保持原始提示", async () => {
+    let calls = 0;
+    const fetcher = (async () => {
+      calls += 1;
+      return new Response(JSON.stringify({ message: "Repository access blocked" }), {
+        status: 403,
+      });
+    }) as typeof fetch;
+
+    const source = parseGitHubSource("https://github.com/blocked/books");
+    await assert.rejects(
+      () => fetchOnlineDirectory(source, "", fetcher),
+      /GitHub 目录读取失败：Repository access blocked/,
+    );
+    assert.equal(calls, 1);
+  });
+
   it("导出包含默认源和用户源的可读 JSON", () => {
     const source = parseGitHubSource("https://github.com/example/books");
     const exported = JSON.parse(

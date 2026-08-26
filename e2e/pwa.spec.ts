@@ -284,8 +284,10 @@ test.describe("PWA 离线完整链路", () => {
     });
 
     await test.step("PWA-022 浏览在线文档库并打开 PDF", async () => {
+      const contentsRoute =
+        /https:\/\/api\.github\.com\/repos\/EugeneYin\/awesome-english-ebooks\/contents/;
       await page.route(
-        /https:\/\/api\.github\.com\/repos\/EugeneYin\/awesome-english-ebooks\/contents/,
+        contentsRoute,
         async (route) => {
           const path = new URL(route.request().url()).pathname;
           const contents = path.endsWith("/contents")
@@ -332,6 +334,54 @@ test.describe("PWA 离线完整链路", () => {
       await page.getByRole("button", { name: "文件", exact: true }).click();
       await expect(page.locator("#recent")).toContainText("Issue.pdf");
       await clearRecentDocs(page);
+      await page.getByRole("button", { name: "文件", exact: true }).click();
+    });
+
+    await test.step("PWA-024 GitHub API 限流时继续浏览在线目录", async () => {
+      const contentsRoute =
+        /https:\/\/api\.github\.com\/repos\/EugeneYin\/awesome-english-ebooks\/contents/;
+      await page.unroute(contentsRoute);
+      let githubRequests = 0;
+      let treeRequests = 0;
+      await page.route(contentsRoute, async (route) => {
+        githubRequests += 1;
+        await route.fulfill({
+          status: 403,
+          headers: { "x-ratelimit-remaining": "0" },
+          json: { message: "API rate limit exceeded for 203.0.113.10." },
+        });
+      });
+      await page.route(
+        "https://ungh.cc/repos/EugeneYin/awesome-english-ebooks",
+        async (route) => {
+          await route.fulfill({ json: { repo: { defaultBranch: "master" } } });
+        },
+      );
+      await page.route(
+        "https://ungh.cc/repos/EugeneYin/awesome-english-ebooks/files/master",
+        async (route) => {
+          treeRequests += 1;
+          await route.fulfill({
+            json: {
+              files: [
+                { path: "README.md", size: 10 },
+                { path: "01_economist/Issue.pdf", size: 30 },
+                { path: "01_economist/Issue.epub", size: 20 },
+              ],
+            },
+          });
+        },
+      );
+
+      await page.reload({ waitUntil: "domcontentloaded" });
+      await page.getByRole("button", { name: "文件", exact: true }).click();
+      await page.getByRole("button", { name: /EugeneYin\/awesome-english-ebooks/ }).click();
+      await expect(page.getByRole("button", { name: /目录 01_economist/ })).toBeVisible();
+      await page.getByRole("button", { name: /目录 01_economist/ }).click();
+      await expect(page.getByRole("button", { name: /PDF Issue\.pdf/ })).toBeVisible();
+      await expect(page.locator("#online-library-status")).toBeHidden();
+      expect(githubRequests).toBe(1);
+      expect(treeRequests).toBe(1);
       await page.getByRole("button", { name: "文件", exact: true }).click();
     });
 

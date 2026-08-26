@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "baselineAppVersion": "3.2.0",
+  "baselineAppVersion": "3.2.1",
   "suite": {
     "id": "pwa-devices",
     "runner": "playwright",

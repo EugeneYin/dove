@@ -31,6 +31,19 @@ interface GitHubContent {
   download_url?: string | null;
 }
 
+interface UnghFile {
+  path?: string;
+  size?: number;
+}
+
+interface UnghIndex {
+  ref: string;
+  files: UnghFile[];
+}
+
+const rateLimitedSources = new Set<string>();
+const unghIndexes = new Map<string, Promise<UnghIndex>>();
+
 export function parseGitHubSource(input: string): OnlineSource {
   const trimmed = input.trim();
   if (!trimmed) throw new Error("请输入 GitHub 仓库链接");
@@ -148,25 +161,151 @@ export function contentsApiUrl(source: OnlineSource, path = source.path): string
   return url.href;
 }
 
+function responseMessage(payload: unknown, status: number): string {
+  return payload && typeof payload === "object" && "message" in payload
+    ? String((payload as { message: unknown }).message)
+    : `HTTP ${status}`;
+}
+
+function isRateLimitResponse(response: Response, message: string): boolean {
+  return (
+    response.status === 429 ||
+    (response.status === 403 &&
+      (response.headers.get("x-ratelimit-remaining") === "0" || /rate limit/i.test(message)))
+  );
+}
+
+function unghRepoUrl(source: OnlineSource): string {
+  return `https://ungh.cc/repos/${encodeURIComponent(source.owner)}/${encodeURIComponent(source.repo)}`;
+}
+
+function unghTreeUrl(source: OnlineSource, ref: string): string {
+  return `${unghRepoUrl(source)}/files/${encodeURIComponent(ref)}`;
+}
+
+function rawGitHubUrl(source: OnlineSource, ref: string, path: string): string {
+  return `https://raw.githubusercontent.com/${[source.owner, source.repo, ref, ...path.split("/")]
+    .map(encodeURIComponent)
+    .join("/")}`;
+}
+
+async function loadUnghIndex(source: OnlineSource, fetcher: typeof fetch): Promise<UnghIndex> {
+  const key = `${source.owner.toLowerCase()}/${source.repo.toLowerCase()}|${source.ref ?? ""}`;
+  const cached = unghIndexes.get(key);
+  if (cached) return cached;
+
+  const request = (async () => {
+    let ref = source.ref;
+    if (!ref) {
+      const response = await fetcher(unghRepoUrl(source));
+      const payload = (await response.json().catch(() => null)) as unknown;
+      if (!response.ok) throw new Error(responseMessage(payload, response.status));
+      const defaultBranch =
+        payload && typeof payload === "object" && "repo" in payload
+          ? (payload as { repo?: { defaultBranch?: unknown } }).repo?.defaultBranch
+          : null;
+      if (typeof defaultBranch !== "string" || !defaultBranch) {
+        throw new Error("备用目录服务没有返回默认分支");
+      }
+      ref = defaultBranch;
+    }
+
+    const response = await fetcher(unghTreeUrl(source, ref));
+    const payload = (await response.json().catch(() => null)) as unknown;
+    if (!response.ok) throw new Error(responseMessage(payload, response.status));
+    const files =
+      payload && typeof payload === "object" && "files" in payload
+        ? (payload as { files?: unknown }).files
+        : null;
+    if (!Array.isArray(files)) throw new Error("备用目录服务返回了无效数据");
+    return { ref, files: files as UnghFile[] };
+  })();
+
+  unghIndexes.set(key, request);
+  try {
+    return await request;
+  } catch (error) {
+    unghIndexes.delete(key);
+    throw error;
+  }
+}
+
+function sortOnlineEntries(entries: OnlineEntry[]): OnlineEntry[] {
+  return entries.sort((a, b) =>
+    a.type === b.type ? a.name.localeCompare(b.name) : a.type === "dir" ? -1 : 1,
+  );
+}
+
+async function fetchUnghDirectory(
+  source: OnlineSource,
+  path: string,
+  fetcher: typeof fetch,
+): Promise<OnlineEntry[]> {
+  const index = await loadUnghIndex(source, fetcher);
+  const normalizedPath = path.replace(/^\/+|\/+$/g, "");
+  const prefix = normalizedPath ? `${normalizedPath}/` : "";
+  const entries = new Map<string, OnlineEntry>();
+
+  for (const file of index.files) {
+    if (typeof file.path !== "string" || !file.path.startsWith(prefix)) continue;
+    const relative = file.path.slice(prefix.length);
+    if (!relative) continue;
+    const slash = relative.indexOf("/");
+    if (slash >= 0) {
+      const name = relative.slice(0, slash);
+      if (name) {
+        entries.set(`dir:${name}`, {
+          type: "dir",
+          name,
+          path: `${prefix}${name}`,
+          size: 0,
+          downloadUrl: null,
+        });
+      }
+      continue;
+    }
+    if (!/\.pdf$/i.test(relative)) continue;
+    entries.set(`pdf:${relative}`, {
+      type: "pdf",
+      name: relative,
+      path: file.path,
+      size: typeof file.size === "number" ? file.size : 0,
+      downloadUrl: rawGitHubUrl(source, index.ref, file.path),
+    });
+  }
+
+  return sortOnlineEntries([...entries.values()]);
+}
+
 export async function fetchOnlineDirectory(
   source: OnlineSource,
   path = source.path,
   fetcher: typeof fetch = fetch,
 ): Promise<OnlineEntry[]> {
+  if (rateLimitedSources.has(source.id)) {
+    return fetchUnghDirectory(source, path, fetcher);
+  }
+
   const response = await fetcher(contentsApiUrl(source, path), {
     headers: { accept: "application/vnd.github+json" },
   });
   const payload = (await response.json().catch(() => null)) as unknown;
   if (!response.ok) {
-    const message =
-      payload && typeof payload === "object" && "message" in payload
-        ? String((payload as { message: unknown }).message)
-        : `HTTP ${response.status}`;
+    const message = responseMessage(payload, response.status);
+    if (isRateLimitResponse(response, message)) {
+      rateLimitedSources.add(source.id);
+      try {
+        return await fetchUnghDirectory(source, path, fetcher);
+      } catch (error) {
+        throw new Error(`GitHub 访问频率受限，备用目录读取失败：${(error as Error).message}`);
+      }
+    }
     throw new Error(`GitHub 目录读取失败：${message}`);
   }
   if (!Array.isArray(payload)) throw new Error("该链接不是可浏览的 GitHub 目录");
 
-  return payload
+  return sortOnlineEntries(
+    payload
     .flatMap((item: GitHubContent): OnlineEntry[] => {
       if (!item.name || !item.path) return [];
       if (item.type === "dir") {
@@ -184,8 +323,8 @@ export async function fetchOnlineDirectory(
         ];
       }
       return [];
-    })
-    .sort((a, b) => (a.type === b.type ? a.name.localeCompare(b.name) : a.type === "dir" ? -1 : 1));
+    }),
+  );
 }
 
 function stableLastModified(value: string): number {

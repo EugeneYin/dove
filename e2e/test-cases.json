@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "baselineAppVersion": "3.2.0",
+  "baselineAppVersion": "3.2.1",
   "suite": {
     "id": "pwa-offline",
     "runner": "playwright",
@@ -143,6 +143,12 @@
         "name": "新增、保存并导出在线文档源",
         "introducedIn": "3.2.0",
         "protects": "用户添加的 GitHub 源跨重载保存，并能与内置源一起导出为 JSON"
+      },
+      {
+        "id": "PWA-024",
+        "name": "GitHub API 限流时继续浏览在线目录",
+        "introducedIn": "3.2.1",
+        "protects": "匿名 GitHub API 额度耗尽后自动改用备用文件树，且后续目录浏览不再重复请求受限接口"
       }
     ]
   }
