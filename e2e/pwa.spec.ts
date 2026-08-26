@@ -158,6 +158,26 @@ test.describe("PWA 离线完整链路", () => {
     const pageErrors: string[] = [];
     page.on("pageerror", (error) => pageErrors.push(error.stack ?? error.message));
 
+    await page.addInitScript(() => {
+      Object.defineProperty(window, "showSaveFilePicker", {
+        configurable: true,
+        value: async (options: unknown) => {
+          localStorage.setItem("dove.test.wordbookPickerOptions", JSON.stringify(options));
+          return {
+            name: "dove-wordbook.json",
+            getFile: async () => new File([], "dove-wordbook.json", { type: "application/json" }),
+            queryPermission: async () => "granted",
+            createWritable: async () => ({
+              write: async (contents: string) => {
+                localStorage.setItem("dove.test.wordbookFile", contents);
+              },
+              close: async () => undefined,
+            }),
+          };
+        },
+      });
+    });
+
     await page.goto(baseURL);
     await page.waitForFunction(() => navigator.serviceWorker.controller !== null, null, {
       timeout: 60_000,
@@ -223,6 +243,24 @@ test.describe("PWA 离线完整链路", () => {
       await expect(page.locator("#install-label")).toHaveText("已安装");
       await page.keyboard.press("Escape");
       await expect(page.locator("#settings-drawer")).toBeHidden();
+    });
+
+    await test.step("PWA-020 首次指定单词本文件", async () => {
+      await page.getByRole("button", { name: "单词本", exact: true }).click();
+      await expect(page.locator("#wordbook-file-setup")).toBeVisible();
+      await page.getByRole("button", { name: "选择或创建单词本文件" }).click();
+      await expect(page.locator("#wordbook-file-setup")).toBeHidden();
+
+      const fileState = await page.evaluate(() => ({
+        options: JSON.parse(localStorage.getItem("dove.test.wordbookPickerOptions") ?? "null"),
+        entries: JSON.parse(localStorage.getItem("dove.test.wordbookFile") ?? "null"),
+      }));
+      expect(fileState.options).toMatchObject({
+        suggestedName: "dove-wordbook.json",
+        startIn: "documents",
+      });
+      expect(fileState.entries).toEqual([]);
+      await page.getByRole("button", { name: "返回阅读" }).click();
     });
 
     await test.step("PWA-016 打开单词本并自动补全词条", async () => {
@@ -387,6 +425,39 @@ test.describe("PWA 离线完整链路", () => {
       expect((await lookUp(page, "gamma"))?.word).toBe("gamma");
       await expect(page.locator("#popup .examples")).toHaveCount(0);
       expect(requests).toBe(1);
+    });
+
+    await test.step("PWA-021 词卡添加与确认删除", async () => {
+      expect((await lookUp(page, "gamma"))?.word).toBe("gamma");
+      const add = page.getByRole("button", { name: "添加 gamma 到单词本" });
+      await expect(add).toHaveText("＋");
+      await add.click();
+
+      const remove = page.getByRole("button", { name: "从单词本删除 gamma" });
+      await expect(remove).toHaveText("📒");
+      expect(
+        await page.evaluate(() =>
+          JSON.parse(localStorage.getItem("dove.test.wordbookFile") ?? "[]").some(
+            (entry: { word?: string }) => entry.word === "gamma",
+          ),
+        ),
+      ).toBe(true);
+      let prompted = false;
+      page.once("dialog", async (dialog) => {
+        prompted = true;
+        expect(dialog.message()).toContain("从单词本删除“gamma”");
+        await dialog.accept();
+      });
+      await remove.click();
+      expect(prompted).toBe(true);
+      await expect(page.getByRole("button", { name: "添加 gamma 到单词本" })).toHaveText("＋");
+      expect(
+        await page.evaluate(() =>
+          JSON.parse(localStorage.getItem("dove.test.wordbookFile") ?? "[]").some(
+            (entry: { word?: string }) => entry.word === "gamma",
+          ),
+        ),
+      ).toBe(false);
     });
 
     await page.locator("#file").setInputFiles(SAMPLE_SCANNED);

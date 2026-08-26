@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "baselineAppVersion": "3.0.1",
+  "baselineAppVersion": "3.1.0",
   "suite": {
     "id": "pwa-offline",
     "runner": "playwright",
@@ -119,6 +119,18 @@
         "name": "再次访问时提示等待中的新版本",
         "introducedIn": "3.0.1",
         "protects": "用户错过 updatefound 后再次打开页面，仍能发现 waiting Worker 并切换到新版"
+      },
+      {
+        "id": "PWA-020",
+        "name": "首次指定单词本文件",
+        "introducedIn": "3.1.0",
+        "protects": "首次进入单词本时可在 Documents 创建 JSON 文件，并把当前词条写入该文件"
+      },
+      {
+        "id": "PWA-021",
+        "name": "词卡添加与确认删除",
+        "introducedIn": "3.1.0",
+        "protects": "双击或长按词卡可用加号加入单词本，已加入时显示本子图标且删除前确认"
       }
     ]
   }

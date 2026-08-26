@@ -35,6 +35,35 @@ export function saveWordbook(storage: WordbookStorage, entries: WordbookEntry[])
   storage.setItem(WORDBOOK_STORAGE_KEY, JSON.stringify(entries));
 }
 
+export function serializeWordbookFile(entries: WordbookEntry[]): string {
+  return `${JSON.stringify(entries, null, 2)}\n`;
+}
+
+/** 文件是用户可编辑的数据源；只要有一个损坏词条就拒绝整份文件，避免静默丢数据。 */
+export function parseWordbookFile(value: string): WordbookEntry[] | null {
+  try {
+    const parsed = JSON.parse(value) as unknown;
+    return Array.isArray(parsed) && parsed.every(isEntry) ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+const comparableWord = (word: string) => word.trim().toLowerCase();
+
+export function findWordbookEntry(
+  entries: WordbookEntry[],
+  word: string,
+): WordbookEntry | undefined {
+  const target = comparableWord(word);
+  return entries.find((entry) => comparableWord(entry.word) === target);
+}
+
+export function removeWordbookWord(entries: WordbookEntry[], word: string): WordbookEntry[] {
+  const target = comparableWord(word);
+  return entries.filter((entry) => comparableWord(entry.word) !== target);
+}
+
 function isEntry(value: unknown): value is WordbookEntry {
   if (!value || typeof value !== "object") return false;
   const entry = value as Record<string, unknown>;
