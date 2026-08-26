@@ -44,6 +44,11 @@
               <div class="drawer-title">最近打开</div>
               <div id="recent" class="recent-list" aria-live="polite"></div>
             </div>
+            <div class="drawer-section">
+              <div class="drawer-title">在线文档库</div>
+              <div id="online-library" aria-live="polite"></div>
+              <p id="online-library-status" class="drawer-inline-status" hidden></p>
+            </div>
           </div>
         </div>
         <button id="wordbook-menu" class="top-menu" type="button" aria-pressed="false">
@@ -85,6 +90,26 @@
             </span>
             <input id="online-examples" type="checkbox" role="switch" />
           </label>
+          <div id="online-source-settings" class="drawer-section">
+            <div class="drawer-title">在线文档库源</div>
+            <form id="online-source-form" class="online-source-form">
+              <input
+                id="online-source-url"
+                type="text"
+                inputmode="url"
+                autocomplete="url"
+                aria-label="GitHub 源链接"
+                placeholder="https://github.com/owner/repo"
+                required
+              />
+              <button type="submit">添加</button>
+            </form>
+            <div id="online-source-list" class="online-source-list"></div>
+            <button id="export-online-sources" class="drawer-action" type="button">
+              导出源
+            </button>
+            <p id="online-source-status" class="drawer-inline-status" aria-live="polite" hidden></p>
+          </div>
           <button id="diag" class="drawer-action" type="button" title="自诊断与日志">
             <span class="button-label">诊断</span>
           </button>

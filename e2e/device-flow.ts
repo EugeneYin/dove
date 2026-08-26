@@ -185,6 +185,46 @@ export async function runDeviceFlow(page: Page, testInfo: TestInfo) {
     await page.getByRole("button", { name: "设置", exact: true }).click();
   });
 
+  await test.step("DEVICE-011 在线文档库抽屉与源设置", async () => {
+    await page.getByRole("button", { name: "文件", exact: true }).click();
+    await expect(page.locator("#file-drawer")).toContainText("在线文档库");
+    await expect(page.getByRole("button", { name: /EugeneYin\/awesome-english-ebooks/ })).toBeVisible();
+
+    const fileDrawer = await page.locator("#file-drawer").evaluate((node) => {
+      const box = node.getBoundingClientRect();
+      return {
+        left: box.left,
+        right: box.right,
+        bottom: box.bottom,
+        viewportWidth: document.documentElement.clientWidth,
+        viewportHeight: document.documentElement.clientHeight,
+      };
+    });
+    expect(fileDrawer.left).toBeGreaterThanOrEqual(0);
+    expect(fileDrawer.right).toBeLessThanOrEqual(fileDrawer.viewportWidth);
+    expect(fileDrawer.bottom).toBeLessThanOrEqual(fileDrawer.viewportHeight);
+
+    await page.getByRole("button", { name: "设置", exact: true }).click();
+    await expect(page.getByLabel("GitHub 源链接")).toBeVisible();
+    await expect(page.getByRole("button", { name: "导出源", exact: true })).toBeVisible();
+    const settingsDrawer = await page.locator("#settings-drawer").evaluate((node) => {
+      const box = node.getBoundingClientRect();
+      return {
+        left: box.left,
+        right: box.right,
+        bottom: box.bottom,
+        viewportWidth: document.documentElement.clientWidth,
+        viewportHeight: document.documentElement.clientHeight,
+        overflowY: getComputedStyle(node).overflowY,
+      };
+    });
+    expect(settingsDrawer.left).toBeGreaterThanOrEqual(0);
+    expect(settingsDrawer.right).toBeLessThanOrEqual(settingsDrawer.viewportWidth);
+    expect(settingsDrawer.bottom).toBeLessThanOrEqual(settingsDrawer.viewportHeight);
+    expect(settingsDrawer.overflowY).toBe("auto");
+    await page.getByRole("button", { name: "设置", exact: true }).click();
+  });
+
   await test.step("DEVICE-009 单词本入口与窄屏表格", async () => {
     const regions = await page.locator("#bar").evaluate(() => {
       const box = (id: string) => document.getElementById(id)?.getBoundingClientRect();

@@ -110,7 +110,10 @@ body {
   flex-direction: column;
   gap: 8px;
   width: min(300px, calc(100vw - 24px));
+  max-height: calc(100vh - 72px);
+  max-height: calc(100dvh - 72px);
   padding: 10px;
+  overflow-y: auto;
   background: var(--card);
   border: 1px solid var(--border);
   border-radius: 12px;
@@ -507,6 +510,132 @@ body {
   padding: 7px 10px;
   font-size: 12px;
   color: #a1a1aa;
+}
+
+/* ---- 在线文档库 ---- */
+
+#online-library,
+.online-library-entries,
+.online-source-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.online-library-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  margin-bottom: 2px;
+}
+
+.online-library-back,
+.online-library-entry {
+  font: inherit;
+  color: var(--fg);
+  background: transparent;
+  border: 0;
+  border-radius: 7px;
+  cursor: pointer;
+}
+
+.online-library-back {
+  flex: none;
+  padding: 6px 8px;
+  color: #71717a;
+}
+
+.online-library-path {
+  min-width: 0;
+  overflow: hidden;
+  font-size: 12px;
+  color: #71717a;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.online-library-entry {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr);
+  align-items: center;
+  width: 100%;
+  padding: 8px 10px;
+  text-align: left;
+}
+
+.online-library-entry:hover,
+.online-library-entry:focus-visible,
+.online-library-back:hover,
+.online-library-back:focus-visible {
+  background: var(--bg);
+}
+
+.online-library-entry:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+
+.online-library-kind {
+  font-size: 10px;
+  color: #94a3b8;
+}
+
+.online-library-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.drawer-inline-status {
+  margin: 5px 4px 0;
+  font-size: 12px;
+  color: #71717a;
+}
+
+.drawer-inline-status.error {
+  color: #b91c1c;
+}
+
+.online-source-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 6px;
+}
+
+.online-source-form input,
+.online-source-form button {
+  min-width: 0;
+  min-height: 38px;
+  padding: 7px 9px;
+  font: inherit;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.online-source-form button {
+  color: var(--accent);
+  background: #eff6ff;
+  cursor: pointer;
+}
+
+.online-source-list {
+  margin-block: 7px;
+}
+
+.online-source-item {
+  overflow: hidden;
+  padding-inline: 4px;
+  font-size: 11px;
+  color: #71717a;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+#export-online-sources {
+  min-height: 38px;
+  padding-block: 7px;
 }
 
 /* ---- 单词本 ---- */

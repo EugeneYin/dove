@@ -64,6 +64,26 @@ async function waitForDictionary(page: Page, timeout = 60_000) {
   }
 }
 
+async function clearRecentDocs(page: Page) {
+  await page.evaluate(
+    () =>
+      new Promise<void>((resolve, reject) => {
+        const request = indexedDB.open("dove", 1);
+        request.onerror = () => reject(request.error);
+        request.onsuccess = () => {
+          const database = request.result;
+          const transaction = database.transaction("docs", "readwrite");
+          transaction.objectStore("docs").clear();
+          transaction.oncomplete = () => {
+            database.close();
+            resolve();
+          };
+          transaction.onerror = () => reject(transaction.error);
+        };
+      }),
+  );
+}
+
 async function lookUp(page: Page, word: string) {
   await page.locator("#popup").evaluate((node) => node.setAttribute("hidden", ""));
   const position = await page.evaluate((target) => {
@@ -261,6 +281,86 @@ test.describe("PWA 离线完整链路", () => {
       });
       expect(fileState.entries).toEqual([]);
       await page.getByRole("button", { name: "返回阅读" }).click();
+    });
+
+    await test.step("PWA-022 浏览在线文档库并打开 PDF", async () => {
+      await page.route(
+        /https:\/\/api\.github\.com\/repos\/EugeneYin\/awesome-english-ebooks\/contents/,
+        async (route) => {
+          const path = new URL(route.request().url()).pathname;
+          const contents = path.endsWith("/contents")
+            ? [
+                { type: "dir", name: "01_economist", path: "01_economist" },
+                { type: "file", name: "README.md", path: "README.md", size: 10 },
+              ]
+            : [
+                {
+                  type: "file",
+                  name: "Issue.epub",
+                  path: "01_economist/Issue.epub",
+                  size: 20,
+                  download_url: "https://raw.githubusercontent.com/example/Issue.epub",
+                },
+                {
+                  type: "file",
+                  name: "Issue.pdf",
+                  path: "01_economist/Issue.pdf",
+                  size: 30,
+                  download_url: "https://raw.githubusercontent.com/example/Issue.pdf",
+                },
+              ];
+          await route.fulfill({ json: contents });
+        },
+      );
+      await page.route("https://raw.githubusercontent.com/example/Issue.pdf", async (route) => {
+        await route.fulfill({ body: readFileSync(SAMPLE), contentType: "application/pdf" });
+      });
+
+      await page.getByRole("button", { name: "文件", exact: true }).click();
+      await expect(page.locator("#file-drawer")).toContainText("在线文档库");
+      await page.getByRole("button", { name: /EugeneYin\/awesome-english-ebooks/ }).click();
+      await expect(page.getByRole("button", { name: /目录 01_economist/ })).toBeVisible();
+      await expect(page.locator("#online-library")).not.toContainText("README.md");
+
+      await page.getByRole("button", { name: /目录 01_economist/ }).click();
+      await expect(page.getByRole("button", { name: /PDF Issue\.pdf/ })).toBeVisible();
+      await expect(page.locator("#online-library")).not.toContainText("Issue.epub");
+
+      await page.getByRole("button", { name: /PDF Issue\.pdf/ }).click();
+      await waitForTextLayer(page);
+      await expect(page.locator("#pager")).toHaveText("1 / 1");
+      await page.getByRole("button", { name: "文件", exact: true }).click();
+      await expect(page.locator("#recent")).toContainText("Issue.pdf");
+      await clearRecentDocs(page);
+      await page.getByRole("button", { name: "文件", exact: true }).click();
+    });
+
+    await test.step("PWA-023 新增、保存并导出在线文档源", async () => {
+      await page.getByRole("button", { name: "设置", exact: true }).click();
+      await page.getByLabel("GitHub 源链接").fill("https://github.com/octocat/Hello-World");
+      await page.getByRole("button", { name: "添加", exact: true }).click();
+      await expect(page.locator("#online-source-status")).toContainText("已添加 octocat/Hello-World");
+      expect(
+        await page.evaluate(() => JSON.parse(localStorage.getItem("dove.onlineSources.v1") ?? "[]")),
+      ).toEqual([{ url: "https://github.com/octocat/Hello-World" }]);
+
+      await page.reload({ waitUntil: "domcontentloaded" });
+      await page.getByRole("button", { name: "设置", exact: true }).click();
+      await expect(page.locator("#online-source-list")).toContainText("octocat/Hello-World");
+
+      const downloadPromise = page.waitForEvent("download");
+      await page.getByRole("button", { name: "导出源", exact: true }).click();
+      const download = await downloadPromise;
+      expect(download.suggestedFilename()).toBe("dove-online-sources.json");
+      const downloadPath = await download.path();
+      expect(downloadPath).not.toBeNull();
+      const exported = JSON.parse(readFileSync(downloadPath!, "utf8"));
+      expect(exported.schemaVersion).toBe(1);
+      expect(exported.sources.map((source: { url: string }) => source.url)).toEqual([
+        "https://github.com/EugeneYin/awesome-english-ebooks",
+        "https://github.com/octocat/Hello-World",
+      ]);
+      await page.getByRole("button", { name: "设置", exact: true }).click();
     });
 
     await test.step("PWA-016 打开单词本并自动补全词条", async () => {
