@@ -64,6 +64,16 @@ async function waitForDictionary(page: Page, timeout = 60_000) {
   }
 }
 
+async function pointOnPdfPage(page: Page, horizontalRatio: number) {
+  return page.locator("#page").evaluate((node, ratio) => {
+    const box = node.getBoundingClientRect();
+    return {
+      x: box.left + box.width * ratio,
+      y: Math.max(box.top + 8, Math.min(box.bottom - 8, window.innerHeight / 2)),
+    };
+  }, horizontalRatio);
+}
+
 async function clearRecentDocs(page: Page) {
   await page.evaluate(
     () =>
@@ -568,6 +578,49 @@ test.describe("PWA 离线完整链路", () => {
     await page.locator("#file").setInputFiles(SAMPLE_PAGES);
     await waitForTextLayer(page);
     await waitForDictionary(page);
+
+    await test.step("PWA-026 页面边缘点击翻页且不干扰选词", async () => {
+      await expect(page.locator("#pager")).toHaveText("1 / 3");
+
+      const rightEdge = await pointOnPdfPage(page, 0.98);
+      await page.mouse.click(rightEdge.x, rightEdge.y);
+      await expect(page.locator("#pager")).toHaveText("2 / 3");
+
+      const pageInterior = await pointOnPdfPage(page, 0.3);
+      await page.mouse.click(pageInterior.x, pageInterior.y);
+      await expect(page.locator("#pager")).toHaveText("2 / 3");
+
+      const leftEdge = await pointOnPdfPage(page, 0.02);
+      await page.mouse.click(leftEdge.x, leftEdge.y);
+      await expect(page.locator("#pager")).toHaveText("1 / 3");
+
+      const dragEnd = { x: rightEdge.x - 20, y: rightEdge.y };
+      await page.mouse.move(rightEdge.x, rightEdge.y);
+      await page.mouse.down();
+      await page.mouse.move(dragEnd.x, dragEnd.y);
+      await page.mouse.up();
+      await expect(page.locator("#pager")).toHaveText("1 / 3");
+
+      expect((await lookUp(page, "alpha"))?.word).toBe("alpha");
+      await expect(page.locator("#pager")).toHaveText("1 / 3");
+
+      await page.evaluate(() => {
+        const span = document.querySelector("#text-layer span");
+        const text = span?.firstChild;
+        if (!text) throw new Error("找不到可选择的 PDF 文本");
+        const range = document.createRange();
+        range.selectNodeContents(text);
+        const selection = window.getSelection();
+        selection?.removeAllRanges();
+        selection?.addRange(range);
+        document.getElementById("popup")?.setAttribute("hidden", "");
+        document.getElementById("hl")?.remove();
+      });
+      await page.mouse.click(rightEdge.x, rightEdge.y);
+      await expect(page.locator("#pager")).toHaveText("1 / 3");
+      await page.evaluate(() => window.getSelection()?.removeAllRanges());
+    });
+
     await page.keyboard.press("ArrowRight");
     await expect(page.locator("#pager")).toHaveText("2 / 3");
     await page.keyboard.press("ArrowRight");

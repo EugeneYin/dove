@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "baselineAppVersion": "3.2.2",
+  "baselineAppVersion": "3.3.0",
   "suite": {
     "id": "pwa-devices",
     "runner": "playwright",
@@ -77,6 +77,12 @@
         "name": "单词本选择已有与创建新文件入口",
         "introducedIn": "3.2.2",
         "protects": "支持文件系统访问的桌面与触屏视口都显示两个明确入口，且按钮不横向溢出"
+      },
+      {
+        "id": "DEVICE-013",
+        "name": "鼠标与触屏页面边缘翻页",
+        "introducedIn": "3.3.0",
+        "protects": "PC 鼠标与手机、Pad 触屏都能使用适中的左右热区翻页，且原有取词手势保持可用"
       }
     ]
   }

@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "baselineAppVersion": "3.2.2",
+  "baselineAppVersion": "3.3.0",
   "suite": {
     "id": "pwa-offline",
     "runner": "playwright",
@@ -155,6 +155,12 @@
         "name": "选择已有单词本文件并继续写回",
         "introducedIn": "3.2.2",
         "protects": "选择已有文件使用打开窗口而非保存窗口，读取现有词条后仍能写回同一个文件"
+      },
+      {
+        "id": "PWA-026",
+        "name": "页面边缘点击翻页且不干扰选词",
+        "introducedIn": "3.3.0",
+        "protects": "页面左右边缘可前后翻页，正文内侧、双击取词和已有文本选区都不会误触翻页"
       }
     ]
   }
