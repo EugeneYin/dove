@@ -341,7 +341,7 @@ jobs:
     timeout-minutes: 20
     environment:
       name: master-live
-      url: https://dove-master.pages.dev
+      url: https://master.dove.ethanyin.com
 
     steps:
       - uses: actions/checkout@v7
@@ -405,7 +405,8 @@ jobs:
       - name: Verify fixed master URL
         env:
           DEPLOYMENT_URL: ${{ steps.master-deploy.outputs.deployment-url }}
-          MASTER_URL: https://dove-master.pages.dev
+          PAGES_URL: https://dove-master.pages.dev
+          MASTER_URL: https://master.dove.ethanyin.com
         run: |
           for resource in / /manifest.webmanifest /sw.js /dict.json.gz; do
             name=${resource#/}
@@ -413,8 +414,11 @@ jobs:
             curl --fail --location --retry 12 --retry-all-errors --retry-delay 5 \
               "$DEPLOYMENT_URL$resource" --output "$RUNNER_TEMP/deployment-$name"
             curl --fail --location --retry 12 --retry-all-errors --retry-delay 5 \
-              "$MASTER_URL$resource" --output "$RUNNER_TEMP/master-$name"
-            cmp "$RUNNER_TEMP/deployment-$name" "$RUNNER_TEMP/master-$name"
+              "$PAGES_URL$resource" --output "$RUNNER_TEMP/pages-$name"
+            curl --fail --location --retry 12 --retry-all-errors --retry-delay 5 \
+              "$MASTER_URL$resource" --output "$RUNNER_TEMP/custom-$name"
+            cmp "$RUNNER_TEMP/deployment-$name" "$RUNNER_TEMP/pages-$name"
+            cmp "$RUNNER_TEMP/deployment-$name" "$RUNNER_TEMP/custom-$name"
           done
 
           echo "### Dove master live acceptance" >> "$GITHUB_STEP_SUMMARY"
@@ -422,7 +426,39 @@ jobs:
           echo "- Commit: ${{ github.sha }}" >> "$GITHUB_STEP_SUMMARY"
           echo "- Candidate deployment: ${{ needs.deploy.outputs.url }}" >> "$GITHUB_STEP_SUMMARY"
           echo "- Master deployment: $DEPLOYMENT_URL" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Pages project URL: $PAGES_URL" >> "$GITHUB_STEP_SUMMARY"
           echo "- Fixed live URL: $MASTER_URL" >> "$GITHUB_STEP_SUMMARY"
+
+  master-domain-health:
+    name: Master custom-domain health
+    needs: test
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment:
+      name: master-live
+      url: https://master.dove.ethanyin.com
+
+    steps:
+      - name: Verify custom domain matches the Pages project
+        env:
+          PAGES_URL: https://dove-master.pages.dev
+          MASTER_URL: https://master.dove.ethanyin.com
+        run: |
+          for resource in / /manifest.webmanifest /sw.js /dict.json.gz; do
+            name=${resource#/}
+            [[ -n "$name" ]] || name=index.html
+            curl --fail --location --retry 12 --retry-all-errors --retry-delay 5 \
+              "$PAGES_URL$resource" --output "$RUNNER_TEMP/pages-$name"
+            curl --fail --location --retry 12 --retry-all-errors --retry-delay 5 \
+              "$MASTER_URL$resource" --output "$RUNNER_TEMP/custom-$name"
+            cmp "$RUNNER_TEMP/pages-$name" "$RUNNER_TEMP/custom-$name"
+          done
+
+          echo "### Dove master custom-domain health" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Pages project URL: $PAGES_URL" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Fixed live URL: $MASTER_URL" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Result: all four resources are reachable and byte-identical" >> "$GITHUB_STEP_SUMMARY"
 
   real-devices:
     name: BrowserStack real devices

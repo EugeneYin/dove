@@ -160,7 +160,8 @@ pnpm run serve:tunnel  # cloudflared 公网隧道，设备端零配置
 
 `master` 的对外长期在线地址是 `https://master.dove.ethanyin.com`，底层 Pages 固定地址是
 `https://dove-master.pages.dev`。每次 `master` push 也必须先通过完整 PWA 基线、Preview 和四端模拟，
-随后才更新该固定站点；若门禁失败，线上继续保留上一版。
+随后才更新该固定站点，并逐字节检查对外域名与本次部署一致；每日计划任务还会复查域名映射。若门禁
+失败，线上继续保留上一版。
 
 `pnpm run serve` 会起两个服务：
 

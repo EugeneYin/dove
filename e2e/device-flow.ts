@@ -4,6 +4,7 @@ import { expect, test, type Page, type TestInfo } from "@playwright/test";
 
 const PROJECT_ROOT = resolve(import.meta.dirname, "..");
 const SAMPLE = resolve(PROJECT_ROOT, "public/sample.pdf");
+const SAMPLE_PAGES = resolve(PROJECT_ROOT, "public/sample-pages.pdf");
 const { version: APP_VERSION } = JSON.parse(
   readFileSync(resolve(PROJECT_ROOT, "package.json"), "utf8"),
 ) as { version: string };
@@ -89,6 +90,24 @@ async function lookUp(page: Page, word: string) {
   return page.locator("#popup .word").textContent();
 }
 
+async function pointOnPdfPage(page: Page, horizontalRatio: number) {
+  return page.locator("#page").evaluate((node, ratio) => {
+    const box = node.getBoundingClientRect();
+    return {
+      x: box.left + box.width * ratio,
+      y: Math.max(box.top + 8, Math.min(box.bottom - 8, window.innerHeight / 2)),
+    };
+  }, horizontalRatio);
+}
+
+async function tapOrClick(page: Page, point: { x: number; y: number }) {
+  if (await page.evaluate(() => navigator.maxTouchPoints > 0)) {
+    await page.touchscreen.tap(point.x, point.y);
+  } else {
+    await page.mouse.click(point.x, point.y);
+  }
+}
+
 async function sessionId(page: Page) {
   const command = `browserstack_executor: ${JSON.stringify({ action: "getSessionDetails" })}`;
   const raw = (await page.evaluate((_) => {}, command)) as unknown as string;
@@ -137,6 +156,19 @@ async function waitUntilDeviceOffline(page: Page) {
 }
 
 export async function runDeviceFlow(page: Page, testInfo: TestInfo) {
+  if (!REAL_DEVICE) {
+    await page.addInitScript(() => {
+      Object.defineProperty(window, "showOpenFilePicker", {
+        configurable: true,
+        value: async () => [],
+      });
+      Object.defineProperty(window, "showSaveFilePicker", {
+        configurable: true,
+        value: async () => ({}),
+      });
+    });
+  }
+
   await testInfo.attach("device-test-case-catalog", {
     body: readFileSync(resolve(PROJECT_ROOT, "e2e/device-test-cases.json")),
     contentType: "application/json",
@@ -185,6 +217,46 @@ export async function runDeviceFlow(page: Page, testInfo: TestInfo) {
     await page.getByRole("button", { name: "设置", exact: true }).click();
   });
 
+  await test.step("DEVICE-011 在线文档库抽屉与源设置", async () => {
+    await page.getByRole("button", { name: "文件", exact: true }).click();
+    await expect(page.locator("#file-drawer")).toContainText("在线文档库");
+    await expect(page.getByRole("button", { name: /EugeneYin\/awesome-english-ebooks/ })).toBeVisible();
+
+    const fileDrawer = await page.locator("#file-drawer").evaluate((node) => {
+      const box = node.getBoundingClientRect();
+      return {
+        left: box.left,
+        right: box.right,
+        bottom: box.bottom,
+        viewportWidth: document.documentElement.clientWidth,
+        viewportHeight: document.documentElement.clientHeight,
+      };
+    });
+    expect(fileDrawer.left).toBeGreaterThanOrEqual(0);
+    expect(fileDrawer.right).toBeLessThanOrEqual(fileDrawer.viewportWidth);
+    expect(fileDrawer.bottom).toBeLessThanOrEqual(fileDrawer.viewportHeight);
+
+    await page.getByRole("button", { name: "设置", exact: true }).click();
+    await expect(page.getByLabel("GitHub 源链接")).toBeVisible();
+    await expect(page.getByRole("button", { name: "导出源", exact: true })).toBeVisible();
+    const settingsDrawer = await page.locator("#settings-drawer").evaluate((node) => {
+      const box = node.getBoundingClientRect();
+      return {
+        left: box.left,
+        right: box.right,
+        bottom: box.bottom,
+        viewportWidth: document.documentElement.clientWidth,
+        viewportHeight: document.documentElement.clientHeight,
+        overflowY: getComputedStyle(node).overflowY,
+      };
+    });
+    expect(settingsDrawer.left).toBeGreaterThanOrEqual(0);
+    expect(settingsDrawer.right).toBeLessThanOrEqual(settingsDrawer.viewportWidth);
+    expect(settingsDrawer.bottom).toBeLessThanOrEqual(settingsDrawer.viewportHeight);
+    expect(settingsDrawer.overflowY).toBe("auto");
+    await page.getByRole("button", { name: "设置", exact: true }).click();
+  });
+
   await test.step("DEVICE-009 单词本入口与窄屏表格", async () => {
     const regions = await page.locator("#bar").evaluate(() => {
       const box = (id: string) => document.getElementById(id)?.getBoundingClientRect();
@@ -203,6 +275,28 @@ export async function runDeviceFlow(page: Page, testInfo: TestInfo) {
     expect(layout.pageRight).toBeLessThanOrEqual(layout.viewportWidth);
     expect(layout.tableRight).toBeLessThanOrEqual(layout.viewportWidth);
     await expect(page.getByRole("button", { name: "添加单词" })).toBeVisible();
+  });
+
+  await test.step("DEVICE-012 单词本选择已有与创建新文件入口", async () => {
+    const canOpen = await page.evaluate(
+      () =>
+        typeof (window as Window & { showOpenFilePicker?: unknown }).showOpenFilePicker ===
+        "function",
+    );
+    const open = page.getByRole("button", { name: "选择已有文件" });
+    if (canOpen) await expect(open).toBeVisible();
+    else await expect(open).toBeHidden();
+    await expect(page.locator("#wordbook-file-create")).toBeVisible();
+
+    const layout = await page.locator(".wordbook-file-actions").evaluate((node) => ({
+      actionsRight: node.getBoundingClientRect().right,
+      buttonRights: [...node.querySelectorAll("button")].map(
+        (button) => button.getBoundingClientRect().right,
+      ),
+      viewportWidth: document.documentElement.clientWidth,
+    }));
+    expect(layout.actionsRight).toBeLessThanOrEqual(layout.viewportWidth);
+    expect(layout.buttonRights.every((right) => right <= layout.viewportWidth)).toBe(true);
     await page.getByRole("button", { name: "返回阅读" }).click();
   });
 
@@ -244,6 +338,34 @@ export async function runDeviceFlow(page: Page, testInfo: TestInfo) {
       };
     });
     expect(layout.buttonRight).toBeLessThanOrEqual(layout.popupRight);
+  });
+
+  await test.step("DEVICE-013 鼠标与触屏页面边缘翻页", async () => {
+    await page.evaluate(() => {
+      window.getSelection()?.removeAllRanges();
+      document.getElementById("popup")?.setAttribute("hidden", "");
+      document.getElementById("hl")?.remove();
+    });
+    await page.locator("#file").setInputFiles(SAMPLE_PAGES);
+    await waitForTextLayer(page);
+
+    expect(await lookUp(page, "alpha")).toBe("alpha");
+    await expect(page.locator("#pager")).toHaveText("1 / 3");
+    await page.evaluate(() => {
+      window.getSelection()?.removeAllRanges();
+      document.getElementById("popup")?.setAttribute("hidden", "");
+      document.getElementById("hl")?.remove();
+    });
+
+    await tapOrClick(page, await pointOnPdfPage(page, 0.98));
+    await expect(page.locator("#pager")).toHaveText("2 / 3");
+    await tapOrClick(page, await pointOnPdfPage(page, 0.3));
+    await expect(page.locator("#pager")).toHaveText("2 / 3");
+    await tapOrClick(page, await pointOnPdfPage(page, 0.02));
+    await expect(page.locator("#pager")).toHaveText("1 / 3");
+
+    await page.locator("#file").setInputFiles(SAMPLE);
+    await waitForTextLayer(page);
   });
 
   await test.step("DEVICE-008 在线例句开关与折叠词卡", async () => {

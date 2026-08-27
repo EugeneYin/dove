@@ -64,6 +64,36 @@ async function waitForDictionary(page: Page, timeout = 60_000) {
   }
 }
 
+async function pointOnPdfPage(page: Page, horizontalRatio: number) {
+  return page.locator("#page").evaluate((node, ratio) => {
+    const box = node.getBoundingClientRect();
+    return {
+      x: box.left + box.width * ratio,
+      y: Math.max(box.top + 8, Math.min(box.bottom - 8, window.innerHeight / 2)),
+    };
+  }, horizontalRatio);
+}
+
+async function clearRecentDocs(page: Page) {
+  await page.evaluate(
+    () =>
+      new Promise<void>((resolve, reject) => {
+        const request = indexedDB.open("dove", 1);
+        request.onerror = () => reject(request.error);
+        request.onsuccess = () => {
+          const database = request.result;
+          const transaction = database.transaction("docs", "readwrite");
+          transaction.objectStore("docs").clear();
+          transaction.oncomplete = () => {
+            database.close();
+            resolve();
+          };
+          transaction.onerror = () => reject(transaction.error);
+        };
+      }),
+  );
+}
+
 async function lookUp(page: Page, word: string) {
   await page.locator("#popup").evaluate((node) => node.setAttribute("hidden", ""));
   const position = await page.evaluate((target) => {
@@ -145,6 +175,71 @@ test.describe("PWA 离线完整链路", () => {
       await expect
         .poll(() => page.locator("html").getAttribute("data-worker-message"))
         .toBe('{"type":"skip-waiting"}');
+    });
+  });
+
+  test("PWA-025 选择已有单词本文件并继续写回", async ({ page }) => {
+    await test.step("PWA-025 选择已有单词本文件并继续写回", async () => {
+      const existingEntry = {
+        id: "existing-word",
+        word: "existing",
+        phonetic: "ɪɡˈzɪstɪŋ",
+        meaning: "adj. 现有的",
+        createdAt: 1,
+      };
+      await page.addInitScript((entry) => {
+        Object.defineProperty(window, "showOpenFilePicker", {
+          configurable: true,
+          value: async (options: unknown) => {
+            localStorage.setItem("dove.test.wordbookOpenPickerOptions", JSON.stringify(options));
+            return [
+              {
+                name: "existing-wordbook.json",
+                getFile: async () =>
+                  new File([`${JSON.stringify([entry], null, 2)}\n`], "existing-wordbook.json", {
+                    type: "application/json",
+                  }),
+                queryPermission: async () => "granted",
+                createWritable: async () => ({
+                  write: async (contents: string) => {
+                    localStorage.setItem("dove.test.wordbookExistingFile", contents);
+                  },
+                  close: async () => undefined,
+                }),
+              },
+            ];
+          },
+        });
+        Object.defineProperty(window, "showSaveFilePicker", {
+          configurable: true,
+          value: async () => {
+            localStorage.setItem("dove.test.wordbookSavePickerCalled", "1");
+            throw new Error("选择已有文件时不应打开保存窗口");
+          },
+        });
+      }, existingEntry);
+
+      await page.goto(baseURL);
+      await page.getByRole("button", { name: "单词本", exact: true }).click();
+      await expect(page.getByRole("button", { name: "选择已有文件" })).toBeVisible();
+      await expect(page.getByRole("button", { name: "创建新文件" })).toBeVisible();
+      await page.getByRole("button", { name: "选择已有文件" }).click();
+
+      await expect(page.locator("#wordbook-file-setup")).toBeHidden();
+      await expect(page.locator("#wordbook-list tr", { hasText: "existing" })).toBeVisible();
+      const fileState = await page.evaluate(() => ({
+        openOptions: JSON.parse(
+          localStorage.getItem("dove.test.wordbookOpenPickerOptions") ?? "null",
+        ),
+        saveCalled: localStorage.getItem("dove.test.wordbookSavePickerCalled"),
+        entries: JSON.parse(localStorage.getItem("dove.test.wordbookExistingFile") ?? "null"),
+      }));
+      expect(fileState.openOptions).toMatchObject({
+        multiple: false,
+        startIn: "documents",
+      });
+      expect(fileState.saveCalled).toBeNull();
+      expect(fileState.entries).toEqual([existingEntry]);
     });
   });
 
@@ -248,7 +343,7 @@ test.describe("PWA 离线完整链路", () => {
     await test.step("PWA-020 首次指定单词本文件", async () => {
       await page.getByRole("button", { name: "单词本", exact: true }).click();
       await expect(page.locator("#wordbook-file-setup")).toBeVisible();
-      await page.getByRole("button", { name: "选择或创建单词本文件" }).click();
+      await page.getByRole("button", { name: "创建新文件" }).click();
       await expect(page.locator("#wordbook-file-setup")).toBeHidden();
 
       const fileState = await page.evaluate(() => ({
@@ -261,6 +356,136 @@ test.describe("PWA 离线完整链路", () => {
       });
       expect(fileState.entries).toEqual([]);
       await page.getByRole("button", { name: "返回阅读" }).click();
+    });
+
+    await test.step("PWA-022 浏览在线文档库并打开 PDF", async () => {
+      const contentsRoute =
+        /https:\/\/api\.github\.com\/repos\/EugeneYin\/awesome-english-ebooks\/contents/;
+      await page.route(
+        contentsRoute,
+        async (route) => {
+          const path = new URL(route.request().url()).pathname;
+          const contents = path.endsWith("/contents")
+            ? [
+                { type: "dir", name: "01_economist", path: "01_economist" },
+                { type: "file", name: "README.md", path: "README.md", size: 10 },
+              ]
+            : [
+                {
+                  type: "file",
+                  name: "Issue.epub",
+                  path: "01_economist/Issue.epub",
+                  size: 20,
+                  download_url: "https://raw.githubusercontent.com/example/Issue.epub",
+                },
+                {
+                  type: "file",
+                  name: "Issue.pdf",
+                  path: "01_economist/Issue.pdf",
+                  size: 30,
+                  download_url: "https://raw.githubusercontent.com/example/Issue.pdf",
+                },
+              ];
+          await route.fulfill({ json: contents });
+        },
+      );
+      await page.route("https://raw.githubusercontent.com/example/Issue.pdf", async (route) => {
+        await route.fulfill({ body: readFileSync(SAMPLE), contentType: "application/pdf" });
+      });
+
+      await page.getByRole("button", { name: "文件", exact: true }).click();
+      await expect(page.locator("#file-drawer")).toContainText("在线文档库");
+      await page.getByRole("button", { name: /EugeneYin\/awesome-english-ebooks/ }).click();
+      await expect(page.getByRole("button", { name: /目录 01_economist/ })).toBeVisible();
+      await expect(page.locator("#online-library")).not.toContainText("README.md");
+
+      await page.getByRole("button", { name: /目录 01_economist/ }).click();
+      await expect(page.getByRole("button", { name: /PDF Issue\.pdf/ })).toBeVisible();
+      await expect(page.locator("#online-library")).not.toContainText("Issue.epub");
+
+      await page.getByRole("button", { name: /PDF Issue\.pdf/ }).click();
+      await waitForTextLayer(page);
+      await expect(page.locator("#pager")).toHaveText("1 / 1");
+      await page.getByRole("button", { name: "文件", exact: true }).click();
+      await expect(page.locator("#recent")).toContainText("Issue.pdf");
+      await clearRecentDocs(page);
+      await page.getByRole("button", { name: "文件", exact: true }).click();
+    });
+
+    await test.step("PWA-024 GitHub API 限流时继续浏览在线目录", async () => {
+      const contentsRoute =
+        /https:\/\/api\.github\.com\/repos\/EugeneYin\/awesome-english-ebooks\/contents/;
+      await page.unroute(contentsRoute);
+      let githubRequests = 0;
+      let treeRequests = 0;
+      await page.route(contentsRoute, async (route) => {
+        githubRequests += 1;
+        await route.fulfill({
+          status: 403,
+          headers: { "x-ratelimit-remaining": "0" },
+          json: { message: "API rate limit exceeded for 203.0.113.10." },
+        });
+      });
+      await page.route(
+        "https://ungh.cc/repos/EugeneYin/awesome-english-ebooks",
+        async (route) => {
+          await route.fulfill({ json: { repo: { defaultBranch: "master" } } });
+        },
+      );
+      await page.route(
+        "https://ungh.cc/repos/EugeneYin/awesome-english-ebooks/files/master",
+        async (route) => {
+          treeRequests += 1;
+          await route.fulfill({
+            json: {
+              files: [
+                { path: "README.md", size: 10 },
+                { path: "01_economist/Issue.pdf", size: 30 },
+                { path: "01_economist/Issue.epub", size: 20 },
+              ],
+            },
+          });
+        },
+      );
+
+      await page.reload({ waitUntil: "domcontentloaded" });
+      await page.getByRole("button", { name: "文件", exact: true }).click();
+      await page.getByRole("button", { name: /EugeneYin\/awesome-english-ebooks/ }).click();
+      await expect(page.getByRole("button", { name: /目录 01_economist/ })).toBeVisible();
+      await page.getByRole("button", { name: /目录 01_economist/ }).click();
+      await expect(page.getByRole("button", { name: /PDF Issue\.pdf/ })).toBeVisible();
+      await expect(page.locator("#online-library-status")).toBeHidden();
+      expect(githubRequests).toBe(1);
+      expect(treeRequests).toBe(1);
+      await page.getByRole("button", { name: "文件", exact: true }).click();
+    });
+
+    await test.step("PWA-023 新增、保存并导出在线文档源", async () => {
+      await page.getByRole("button", { name: "设置", exact: true }).click();
+      await page.getByLabel("GitHub 源链接").fill("https://github.com/octocat/Hello-World");
+      await page.getByRole("button", { name: "添加", exact: true }).click();
+      await expect(page.locator("#online-source-status")).toContainText("已添加 octocat/Hello-World");
+      expect(
+        await page.evaluate(() => JSON.parse(localStorage.getItem("dove.onlineSources.v1") ?? "[]")),
+      ).toEqual([{ url: "https://github.com/octocat/Hello-World" }]);
+
+      await page.reload({ waitUntil: "domcontentloaded" });
+      await page.getByRole("button", { name: "设置", exact: true }).click();
+      await expect(page.locator("#online-source-list")).toContainText("octocat/Hello-World");
+
+      const downloadPromise = page.waitForEvent("download");
+      await page.getByRole("button", { name: "导出源", exact: true }).click();
+      const download = await downloadPromise;
+      expect(download.suggestedFilename()).toBe("dove-online-sources.json");
+      const downloadPath = await download.path();
+      expect(downloadPath).not.toBeNull();
+      const exported = JSON.parse(readFileSync(downloadPath!, "utf8"));
+      expect(exported.schemaVersion).toBe(1);
+      expect(exported.sources.map((source: { url: string }) => source.url)).toEqual([
+        "https://github.com/EugeneYin/awesome-english-ebooks",
+        "https://github.com/octocat/Hello-World",
+      ]);
+      await page.getByRole("button", { name: "设置", exact: true }).click();
     });
 
     await test.step("PWA-016 打开单词本并自动补全词条", async () => {
@@ -353,6 +578,49 @@ test.describe("PWA 离线完整链路", () => {
     await page.locator("#file").setInputFiles(SAMPLE_PAGES);
     await waitForTextLayer(page);
     await waitForDictionary(page);
+
+    await test.step("PWA-026 页面边缘点击翻页且不干扰选词", async () => {
+      await expect(page.locator("#pager")).toHaveText("1 / 3");
+
+      const rightEdge = await pointOnPdfPage(page, 0.98);
+      await page.mouse.click(rightEdge.x, rightEdge.y);
+      await expect(page.locator("#pager")).toHaveText("2 / 3");
+
+      const pageInterior = await pointOnPdfPage(page, 0.3);
+      await page.mouse.click(pageInterior.x, pageInterior.y);
+      await expect(page.locator("#pager")).toHaveText("2 / 3");
+
+      const leftEdge = await pointOnPdfPage(page, 0.02);
+      await page.mouse.click(leftEdge.x, leftEdge.y);
+      await expect(page.locator("#pager")).toHaveText("1 / 3");
+
+      const dragEnd = { x: rightEdge.x - 20, y: rightEdge.y };
+      await page.mouse.move(rightEdge.x, rightEdge.y);
+      await page.mouse.down();
+      await page.mouse.move(dragEnd.x, dragEnd.y);
+      await page.mouse.up();
+      await expect(page.locator("#pager")).toHaveText("1 / 3");
+
+      expect((await lookUp(page, "alpha"))?.word).toBe("alpha");
+      await expect(page.locator("#pager")).toHaveText("1 / 3");
+
+      await page.evaluate(() => {
+        const span = document.querySelector("#text-layer span");
+        const text = span?.firstChild;
+        if (!text) throw new Error("找不到可选择的 PDF 文本");
+        const range = document.createRange();
+        range.selectNodeContents(text);
+        const selection = window.getSelection();
+        selection?.removeAllRanges();
+        selection?.addRange(range);
+        document.getElementById("popup")?.setAttribute("hidden", "");
+        document.getElementById("hl")?.remove();
+      });
+      await page.mouse.click(rightEdge.x, rightEdge.y);
+      await expect(page.locator("#pager")).toHaveText("1 / 3");
+      await page.evaluate(() => window.getSelection()?.removeAllRanges());
+    });
+
     await page.keyboard.press("ArrowRight");
     await expect(page.locator("#pager")).toHaveText("2 / 3");
     await page.keyboard.press("ArrowRight");
