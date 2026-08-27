@@ -1243,6 +1243,82 @@ window.addEventListener("resize", () => {
 });
 
 // 翻页
+const PAGE_TURN_ZONE_RATIO = 0.18;
+const PAGE_TURN_ZONE_MIN_PX = 48;
+const PAGE_TURN_ZONE_MAX_PX = 120;
+
+let pageTurnPointer: {
+  id: number;
+  x: number;
+  y: number;
+  startedAt: number;
+  blocked: boolean;
+} | null = null;
+
+function hasTextLayerSelection() {
+  const selection = window.getSelection();
+  if (!selection || selection.isCollapsed) return false;
+  return Boolean(
+    (selection.anchorNode && textLayerEl.contains(selection.anchorNode)) ||
+      (selection.focusNode && textLayerEl.contains(selection.focusNode)),
+  );
+}
+
+function pageTurnDirection(x: number) {
+  const box = pageEl.getBoundingClientRect();
+  const zoneWidth = Math.min(
+    PAGE_TURN_ZONE_MAX_PX,
+    Math.max(PAGE_TURN_ZONE_MIN_PX, box.width * PAGE_TURN_ZONE_RATIO),
+  );
+  if (x <= box.left + zoneWidth) return -1;
+  if (x >= box.right - zoneWidth) return 1;
+  return 0;
+}
+
+pageEl.addEventListener("pointerdown", (event) => {
+  if (!event.isPrimary || event.button !== 0) return;
+  const target = event.target as Element;
+  pageTurnPointer = {
+    id: event.pointerId,
+    x: event.clientX,
+    y: event.clientY,
+    startedAt: performance.now(),
+    blocked:
+      !popupEl.hidden || hasTextLayerSelection() || Boolean(target.closest("#text-layer span")),
+  };
+});
+
+pageEl.addEventListener("pointermove", (event) => {
+  if (!pageTurnPointer || event.pointerId !== pageTurnPointer.id) return;
+  if (
+    Math.hypot(event.clientX - pageTurnPointer.x, event.clientY - pageTurnPointer.y) >
+    MOVE_TOLERANCE
+  ) {
+    pageTurnPointer.blocked = true;
+  }
+});
+
+pageEl.addEventListener("pointerup", (event) => {
+  if (!pageTurnPointer || event.pointerId !== pageTurnPointer.id) return;
+  const pointer = pageTurnPointer;
+  pageTurnPointer = null;
+  if (
+    pointer.blocked ||
+    performance.now() - pointer.startedAt >= LONG_PRESS_MS ||
+    hasTextLayerSelection()
+  ) {
+    return;
+  }
+  const direction = pageTurnDirection(event.clientX);
+  if (direction) go(direction);
+});
+
+for (const type of ["pointercancel", "pointerleave"] as const) {
+  pageEl.addEventListener(type, () => {
+    pageTurnPointer = null;
+  });
+}
+
 function go(delta: number) {
   if (!doc || !wordbookPageEl.hidden) return;
   const target = pageNum + delta;

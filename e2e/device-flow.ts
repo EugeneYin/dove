@@ -4,6 +4,7 @@ import { expect, test, type Page, type TestInfo } from "@playwright/test";
 
 const PROJECT_ROOT = resolve(import.meta.dirname, "..");
 const SAMPLE = resolve(PROJECT_ROOT, "public/sample.pdf");
+const SAMPLE_PAGES = resolve(PROJECT_ROOT, "public/sample-pages.pdf");
 const { version: APP_VERSION } = JSON.parse(
   readFileSync(resolve(PROJECT_ROOT, "package.json"), "utf8"),
 ) as { version: string };
@@ -87,6 +88,24 @@ async function lookUp(page: Page, word: string) {
 
   await expect(page.locator("#popup")).toBeVisible();
   return page.locator("#popup .word").textContent();
+}
+
+async function pointOnPdfPage(page: Page, horizontalRatio: number) {
+  return page.locator("#page").evaluate((node, ratio) => {
+    const box = node.getBoundingClientRect();
+    return {
+      x: box.left + box.width * ratio,
+      y: Math.max(box.top + 8, Math.min(box.bottom - 8, window.innerHeight / 2)),
+    };
+  }, horizontalRatio);
+}
+
+async function tapOrClick(page: Page, point: { x: number; y: number }) {
+  if (await page.evaluate(() => navigator.maxTouchPoints > 0)) {
+    await page.touchscreen.tap(point.x, point.y);
+  } else {
+    await page.mouse.click(point.x, point.y);
+  }
 }
 
 async function sessionId(page: Page) {
@@ -319,6 +338,34 @@ export async function runDeviceFlow(page: Page, testInfo: TestInfo) {
       };
     });
     expect(layout.buttonRight).toBeLessThanOrEqual(layout.popupRight);
+  });
+
+  await test.step("DEVICE-013 鼠标与触屏页面边缘翻页", async () => {
+    await page.evaluate(() => {
+      window.getSelection()?.removeAllRanges();
+      document.getElementById("popup")?.setAttribute("hidden", "");
+      document.getElementById("hl")?.remove();
+    });
+    await page.locator("#file").setInputFiles(SAMPLE_PAGES);
+    await waitForTextLayer(page);
+
+    expect(await lookUp(page, "alpha")).toBe("alpha");
+    await expect(page.locator("#pager")).toHaveText("1 / 3");
+    await page.evaluate(() => {
+      window.getSelection()?.removeAllRanges();
+      document.getElementById("popup")?.setAttribute("hidden", "");
+      document.getElementById("hl")?.remove();
+    });
+
+    await tapOrClick(page, await pointOnPdfPage(page, 0.98));
+    await expect(page.locator("#pager")).toHaveText("2 / 3");
+    await tapOrClick(page, await pointOnPdfPage(page, 0.3));
+    await expect(page.locator("#pager")).toHaveText("2 / 3");
+    await tapOrClick(page, await pointOnPdfPage(page, 0.02));
+    await expect(page.locator("#pager")).toHaveText("1 / 3");
+
+    await page.locator("#file").setInputFiles(SAMPLE);
+    await waitForTextLayer(page);
   });
 
   await test.step("DEVICE-008 在线例句开关与折叠词卡", async () => {
